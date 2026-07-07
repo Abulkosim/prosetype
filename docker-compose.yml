@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: prosetype
+      POSTGRES_PASSWORD: prosetype
+      POSTGRES_DB: prosetype
+    ports:
+      - '5432:5432'
+    volumes:
+      - prosetype-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U prosetype -d prosetype']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  prosetype-pgdata:

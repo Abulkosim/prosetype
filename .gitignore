@@ -1,0 +1,25 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+*.tsbuildinfo
+
+# env — keep .env.example current, never commit real env files
+.env
+.env.*
+!.env.example
+
+# test artifacts
+coverage/
+playwright-report/
+test-results/
+
+# tooling caches
+.vite/
+.eslintcache
+.pnpm-store/
+
+# logs & OS noise
+*.log
+.DS_Store

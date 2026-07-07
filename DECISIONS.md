@@ -1,0 +1,45 @@
+# DECISIONS
+
+One line per decision: what, why.
+
+- Product name stays "prosetype" as a placeholder pending the human answer to plan §13.1.
+- CI is GitLab CI flavor since the team tooling is GitLab (plan §13.2).
+- Russian originals deferred to Phase 3 per plan §13.3 (Cyrillic/IME complexity would blur the Phase 1 feel gate).
+- Node 24 LTS chosen (plan §3 allows it); pinned in `.nvmrc`.
+- TypeScript pinned to ~5.9 (not 6.0.3 latest): TS 6.0 shipped after this scaffold's toolchain baseline and typescript-eslint support tops out at <6.1; 5.9 is the boring, fully supported choice.
+- ESLint 10 + typescript-eslint 8 flat config uses the non-type-checked `recommended` preset at the root for speed and simplicity; packages can opt into typed linting later if needed.
+- Base tsconfig uses `module: ESNext` + `moduleResolution: bundler`; `apps/api` may override to NodeNext when it grows a real server build.
+- Root `ingest` script runs `node scripts/ingest.ts` relying on Node 24 native type stripping; revisit if the ingest script needs non-erasable TS syntax.
+- CI installs pnpm via `npm install -g pnpm@11.7.0` instead of corepack, since corepack is being removed from Node distributions.
+- Stub packages each carry their own `typescript`/`vitest` devDependencies (same versions as root) because pnpm does not expose root binaries to workspace packages.
+- pnpm 11's supply-chain policy (`minimumReleaseAge`) auto-appended `minimumReleaseAgeExclude` entries to `pnpm-workspace.yaml` during install for very fresh vitest/typescript-eslint releases; kept as generated.
+- Fonts self-hosted via `@fontsource` packages (`ibm-plex-mono` 400/500, `eb-garamond` 400-italic) — boring, versioned, no CDN dependency (plan §9.4 silent on delivery mechanism).
+- Vite dev server on 5173 proxies `/api` → `http://localhost:3001` so the web app can call the API same-origin in dev (plan silent on dev proxy).
+- react-router pinned to ^7 (library mode: `BrowserRouter`/`Routes`) and vite to ^7 with `@vitejs/plugin-react` ^5, not the days-old router v8 / vite 8 (plugin-react 6 peer-requires vite 8); stable, boring combo.
+- Letterbox bars use `--color-bar: #0B0906`, a touch darker than the stage, since plan §9.4 names no bar color ("never pure #000" is read as a stage rule but respected for bars too).
+- Top letterbox bar carries quiet `stats · library` nav links in subtitle style — plan is silent on how to reach the other two routes.
+- `allowBuilds: esbuild: true` added to `pnpm-workspace.yaml` so vite's esbuild dependency can run its postinstall under pnpm 11's build-script gate.
+- zod v4 (current major) used in `packages/schema` and api config; plan pins no version, v4 is current (`z.uuid()`, `z.int()`, `z.url()` top-level APIs).
+- Passage DTO (plan silent on exact shape) nests attribution as `work {slug,title,translator,pubYear}` and `author {slug,name,era}` so the client can render the epigraph without extra requests.
+- charEvents 64KB cap measured as UTF-8 bytes of `JSON.stringify(log)` via `TextEncoder` (works in browser and Node).
+- `/healthz` registered at `/api/v1/healthz` since plan §8 puts the whole route table under base path `/api/v1`.
+- Drizzle numeric columns use `mode: 'number'` so stats read/write as JS numbers instead of strings.
+- api and schema packages use explicit `.ts` import extensions + `allowImportingTsExtensions` so Node 24 native type stripping runs `src/server.ts` directly (no build step, no tsx); dev script uses `node --watch --env-file-if-exists=../../.env`.
+- @fastify/cors configured with static string origin: it always answers with the configured origin and never reflects a foreign one (browser enforces); test asserts non-reflection.
+- Initial Drizzle migration generated as `apps/api/drizzle/0000_init.sql` (`drizzle-kit generate --name init`); no DB connection needed for generate.
+- corpus: Anna Karenina on PG (#1399) is the Constance Garnett translation, not Maude as plan §5 assumed — recorded the real PG translator.
+- corpus: plan said Meditations (Long), but PG #2680 is the archaic Casaubon version — sourced from PG #15877 (George Long) instead.
+- corpus: Red Harvest, As I Lay Dying, and Kafka's The Castle are not on Project Gutenberg (checked via Gutendex 2026-07-07) — substituted a second Maltese Falcon passage and extra Fitzgerald/Woolf passages; details in corpus/passages.yaml header.
+- corpus: in the Maltese Falcon "blond satan" excerpt, PG typographic markup only (lead-in small caps, italic underscores around "motif") was dropped; wording untouched.
+- corpus: pub_year recorded as first-publication year of the translation (or of the original for English-language works), best-effort from standard bibliography.
+- corpus: era slugs beyond plan examples chosen plainly: philosophy (Nietzsche), stoic (Aurelius, Epictetus), hardboiled (Hammett), gothic (Poe), victorian (Wilde); Conrad classed modernist with hardboiled theme per §5's proto-noir framing.
+- `scripts/` is a pnpm workspace package named "scripts" (added to `pnpm-workspace.yaml`) so its yaml/zod deps + vitest wiring live with the code; `ingest.ts` imports the api drizzle schema/client via relative `../apps/api/src/db/*.ts` paths rather than adding an exports map to the api package.
+- Root `ingest` script gained `--env-file-if-exists=.env` so DATABASE_URL loads from `.env` like the api dev script; an optional CLI arg (`pnpm ingest path/to.yaml`) overrides the corpus path for testing (plan silent on both).
+- Accent folding (§6.3) generalizes the listed examples via NFD decomposition + combining-mark strip plus a small ligature map (æ œ Æ Œ ß ø Ø); any non-ASCII char with no fold fails loudly with its code point.
+- Difficulty (§6.4) definitions where the plan is silent: word length counts letters/digits only (punctuation weight is already the separate term), punctuation-per-100-chars uses total text length incl. spaces, sentence count = number of `.!?` runs (min 1).
+- Passage upsert uses `onConflictDoUpdate` on `text_hash` so re-ingest refreshes computed fields idempotently; duplicate hashes within one YAML file are skipped and named in the report; author/work metadata takes the first YAML occurrence per run.
+- `corpus/passages.yaml` entries are validated with `z.strictObject` so unknown keys (curator typos like `band_overide`) fail loudly; optional `birth_year`/`death_year` keys are accepted to feed the authors table.
+- Ingest validates and normalizes every passage before any DB write, then upserts everything in a single transaction — a bad passage means zero writes.
+- Integrator: recreated the local Postgres volume and applied schema via `pnpm db:migrate` (drizzle-kit) instead of the earlier manual psql apply, so the drizzle migration journal exists and re-running `db:migrate` is a no-op.
+- Integrator: ran Prettier over `corpus/passages.yaml` (double→single quote style only; passage text blocks untouched, hashes unchanged, re-ingest confirmed idempotent at 30 passages).
+- Integrator: `curation-report.txt` (output of `pnpm ingest`) committed at the repo root so the Gate 0 reviewer can read the difficulty/band report without running ingest.
