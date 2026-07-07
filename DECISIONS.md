@@ -43,6 +43,11 @@ One line per decision: what, why.
 - Integrator: recreated the local Postgres volume and applied schema via `pnpm db:migrate` (drizzle-kit) instead of the earlier manual psql apply, so the drizzle migration journal exists and re-running `db:migrate` is a no-op.
 - Integrator: ran Prettier over `corpus/passages.yaml` (double→single quote style only; passage text blocks untouched, hashes unchanged, re-ingest confirmed idempotent at 30 passages).
 - Integrator: `curation-report.txt` (output of `pnpm ingest`) committed at the repo root so the Gate 0 reviewer can read the difficulty/band report without running ingest.
+- Passage db access lives behind a `PassageRepository` interface (`apps/api/src/passages/`); `buildApp` accepts an optional `passageRepo` dep so route unit tests stub it (no Postgres in CI until Phase 2).
+- `GET /passages/next` random selection uses `ORDER BY random() LIMIT 1` — O(n) scan, fine at the ~30-row corpus; revisit if the corpus grows large.
+- `exclude` query param over the 20-id cap is rejected with 400 (not silently truncated) — a client sending more is a bug worth surfacing.
+- API error bodies are `{ error: 'BadRequest'|'NotFound', message }`; 400 messages come from zod v4 `z.prettifyError` (plan silent on error shape).
+- Passage repository rows are re-parsed through the shared `passageSchema` before returning so DB/DTO drift fails loudly at the boundary.
 - engine depends on `@prosetype/schema` as a type-only devDependency (CharEvent/CharEvents/CharEventCodeValue), keeping schema the single source of truth for the wire format while the engine stays zero-runtime-dependency.
 - engine defines its own `RunStats` interface (structurally identical to schema's) since importing the zod-derived type would pull a runtime schema dependency for a non-charEvents shape.
 - engine event-index conventions where §7.5 is silent: slot adds use the target char's passage index; extras, over-cap presses, and space commits use the word-end (space) index; backspacing into the previous word logs a delete at that word's space index; all indices stay within the passage.

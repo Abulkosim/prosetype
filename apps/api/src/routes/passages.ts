@@ -1,0 +1,90 @@
+import { bandSchema } from '@prosetype/schema';
+import type { FastifyInstance, FastifyReply } from 'fastify';
+import { z } from 'zod';
+import type { PassageFilter, PassageRepository } from '../passages/repository.ts';
+
+/** Max recent passage ids accepted in `exclude` (plan §8: "cap 20"). */
+export const MAX_EXCLUDE_IDS = 20;
+
+const nextQuerySchema = z.object({
+  band: bandSchema.optional(),
+  theme: z.string().min(1).optional(),
+  author: z.string().min(1).optional(),
+  exclude: z
+    .string()
+    .regex(/^\d+(,\d+)*$/, 'exclude must be a comma-separated list of passage ids')
+    .transform((value) => value.split(',').map(Number))
+    .pipe(
+      z
+        .array(z.int().positive())
+        .max(MAX_EXCLUDE_IDS, `exclude accepts at most ${MAX_EXCLUDE_IDS} ids`),
+    )
+    .optional(),
+});
+
+const idParamsSchema = z.object({
+  id: z.coerce.number().int().positive(),
+});
+
+function sendBadRequest(reply: FastifyReply, error: z.ZodError): FastifyReply {
+  return reply.code(400).send({
+    error: 'BadRequest',
+    message: z.prettifyError(error),
+  });
+}
+
+function sendNotFound(reply: FastifyReply, message: string): FastifyReply {
+  return reply.code(404).send({ error: 'NotFound', message });
+}
+
+function describeFilter(filter: PassageFilter): string {
+  const parts = [
+    filter.band !== undefined ? `band=${filter.band}` : null,
+    filter.theme !== undefined ? `theme=${filter.theme}` : null,
+    filter.author !== undefined ? `author=${filter.author}` : null,
+    filter.excludeIds.length > 0 ? `excluding ${String(filter.excludeIds.length)} recent` : null,
+  ].filter((part) => part !== null);
+  return parts.length > 0 ? parts.join(', ') : 'no filters';
+}
+
+export interface PassageRoutesOptions {
+  repo: PassageRepository;
+}
+
+/**
+ * GET /passages/next and GET /passages/:id (plan §8, Phase 1 slice).
+ * Registered under the /api/v1 prefix by buildApp.
+ */
+export async function passageRoutes(
+  app: FastifyInstance,
+  opts: PassageRoutesOptions,
+): Promise<void> {
+  const { repo } = opts;
+
+  app.get('/passages/next', async (request, reply) => {
+    const parsed = nextQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      return sendBadRequest(reply, parsed.error);
+    }
+    const { band, theme, author, exclude } = parsed.data;
+    const filter: PassageFilter = { band, theme, author, excludeIds: exclude ?? [] };
+    const passage = await repo.findRandom(filter);
+    if (passage === null) {
+      return sendNotFound(reply, `No passage matches the given filters (${describeFilter(filter)})`);
+    }
+    return passage;
+  });
+
+  app.get('/passages/:id', async (request, reply) => {
+    const parsed = idParamsSchema.safeParse(request.params);
+    if (!parsed.success) {
+      return sendBadRequest(reply, parsed.error);
+    }
+    const { id } = parsed.data;
+    const passage = await repo.findById(id);
+    if (passage === null) {
+      return sendNotFound(reply, `Passage ${String(id)} not found`);
+    }
+    return passage;
+  });
+}
