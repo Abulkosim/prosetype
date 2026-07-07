@@ -1,0 +1,470 @@
+# DRAFT — pending curator review (Gate 0)
+#
+# 30 passages drafted verbatim from Project Gutenberg plain-text editions
+# (fetched 2026-07-07). Text is NOT pre-normalized: curly quotes, em dashes,
+# and original punctuation are kept as fetched; scripts/ingest.ts normalizes
+# per plan §6.3 and its curation report flags every fold for human veto.
+#
+# Substitutions vs the plan §5 seed list (noted per instructions):
+#   - Faulkner, "As I Lay Dying" (PD 2026): not yet on Project Gutenberg —
+#     substituted extra Fitzgerald/Woolf passages in the modernist group.
+#   - Kafka, "The Castle" (Muir, 1930): not on Project Gutenberg —
+#     substituted within the modernist group as above.
+#   - Hammett, "Red Harvest" (PD 2025): not on Project Gutenberg —
+#     substituted a second Maltese Falcon (gutenberg:77600) passage.
+#   - Tolstoy "Anna Karenina" on PG (#1399) is the Constance Garnett
+#     translation, not Maude as the plan guessed; recorded as fetched.
+#   - Marcus Aurelius: PG #2680 is the archaic Casaubon translation; used
+#     PG #15877 (George Long) to match the plan.
+#   - Maltese Falcon "blond satan" passage: dropped PG typographic markup
+#     only (lead-in small caps "SAMUEL SPADE’S", italic underscores around
+#     "motif"); the words are untouched.
+
+- author: dostoevsky
+  author_name: Fyodor Dostoevsky
+  era: russian-golden-age
+  work: crime-and-punishment
+  title: 'Crime and Punishment'
+  translator: Constance Garnett
+  pub_year: 1914
+  source: 'gutenberg:2554'
+  themes: [russian-soul]
+  text: >
+    On an exceptionally hot evening early in July a young man came out of the
+    garret in which he lodged in S. Place and walked slowly, as though in
+    hesitation, towards K. bridge.
+
+- author: dostoevsky
+  author_name: Fyodor Dostoevsky
+  era: russian-golden-age
+  work: notes-from-the-underground
+  title: 'Notes from the Underground'
+  translator: Constance Garnett
+  pub_year: 1918
+  source: 'gutenberg:600'
+  themes: [russian-soul]
+  text: >
+    I am a sick man.... I am a spiteful man. I am an unattractive man. I
+    believe my liver is diseased. However, I know nothing at all about my
+    disease, and do not know for certain what ails me. I don’t consult a
+    doctor for it, and never have, though I have a respect for medicine and
+    doctors.
+
+- author: dostoevsky
+  author_name: Fyodor Dostoevsky
+  era: russian-golden-age
+  work: the-brothers-karamazov
+  title: 'The Brothers Karamazov'
+  translator: Constance Garnett
+  pub_year: 1912
+  source: 'gutenberg:28054'
+  themes: [russian-soul]
+  text: >
+    The man who lies to himself and listens to his own lie comes to such a
+    pass that he cannot distinguish the truth within him, or around him, and
+    so loses all respect for himself and for others.
+
+- author: dostoevsky
+  author_name: Fyodor Dostoevsky
+  era: russian-golden-age
+  work: white-nights
+  title: 'White Nights'
+  translator: Constance Garnett
+  pub_year: 1918
+  source: 'gutenberg:36034'
+  themes: [russian-soul]
+  text: >
+    It was a wonderful night, such a night as is only possible when we are
+    young, dear reader. The sky was so starry, so bright that, looking at it,
+    one could not help asking oneself whether ill-humoured and capricious
+    people could live under such a sky.
+
+- author: tolstoy
+  author_name: Leo Tolstoy
+  era: russian-golden-age
+  work: anna-karenina
+  title: 'Anna Karenina'
+  translator: Constance Garnett
+  pub_year: 1901
+  source: 'gutenberg:1399'
+  themes: [russian-soul]
+  text: >
+    Happy families are all alike; every unhappy family is unhappy in its own
+    way. Everything was in confusion in the Oblonskys’ house. The wife had
+    discovered that the husband was carrying on an intrigue with a French
+    girl, who had been a governess in their family, and she had announced to
+    her husband that she could not go on living in the same house with him.
+
+- author: chekhov
+  author_name: Anton Chekhov
+  era: russian-golden-age
+  work: the-lady-with-the-dog
+  title: 'The Lady with the Dog'
+  translator: Constance Garnett
+  pub_year: 1917
+  source: 'gutenberg:13415'
+  themes: [russian-soul]
+  text: >
+    Yalta was hardly visible through the morning mist; white clouds stood
+    motionless on the mountain-tops. The leaves did not stir on the trees,
+    grasshoppers chirruped, and the monotonous hollow sound of the sea rising
+    up from below, spoke of the peace, of the eternal sleep awaiting us. So it
+    must have sounded when there was no Yalta, no Oreanda here; so it sounds
+    now, and it will sound as indifferently and monotonously when we are all
+    no more.
+
+- author: gogol
+  author_name: Nikolai Gogol
+  era: russian-golden-age
+  work: the-mantle
+  title: 'The Mantle'
+  translator: Claud Field
+  pub_year: 1916
+  source: 'gutenberg:36238'
+  themes: [russian-soul]
+  text: >
+    However many of his superiors might come and go, he was always seen in the
+    same spot, in the same attitude, busy with the same work, and bearing the
+    same title; so that people began to believe he had come into the world
+    just as he was, with his bald forehead and official uniform.
+
+- author: turgenev
+  author_name: Ivan Turgenev
+  era: russian-golden-age
+  work: fathers-and-children
+  title: 'Fathers and Children'
+  translator: Constance Garnett
+  pub_year: 1895
+  source: 'gutenberg:30723'
+  themes: [russian-soul]
+  text: >
+    However passionate, sinning, and rebellious the heart hidden in the tomb,
+    the flowers growing over it peep serenely at us with their innocent eyes;
+    they tell us not of eternal peace alone, of that great peace of
+    'indifferent' nature; tell us too of eternal reconciliation and of life
+    without end.
+
+- author: nietzsche
+  author_name: Friedrich Nietzsche
+  era: philosophy
+  work: thus-spake-zarathustra
+  title: 'Thus Spake Zarathustra'
+  translator: Thomas Common
+  pub_year: 1909
+  source: 'gutenberg:1998'
+  themes: [aphorisms]
+  text: >
+    Man is a rope stretched between the animal and the Superman—a rope over an
+    abyss. A dangerous crossing, a dangerous wayfaring, a dangerous
+    looking-back, a dangerous trembling and halting.
+
+- author: nietzsche
+  author_name: Friedrich Nietzsche
+  era: philosophy
+  work: thus-spake-zarathustra
+  title: 'Thus Spake Zarathustra'
+  translator: Thomas Common
+  pub_year: 1909
+  source: 'gutenberg:1998'
+  themes: [aphorisms]
+  text: >
+    Alas! there cometh the time when man will no longer launch the arrow of
+    his longing beyond man—and the string of his bow will have unlearned to
+    whizz! I tell you: one must still have chaos in one, to give birth to a
+    dancing star. I tell you: ye have still chaos in you.
+
+- author: nietzsche
+  author_name: Friedrich Nietzsche
+  era: philosophy
+  work: beyond-good-and-evil
+  title: 'Beyond Good and Evil'
+  translator: Helen Zimmern
+  pub_year: 1906
+  source: 'gutenberg:4363'
+  themes: [aphorisms]
+  text: >
+    He who fights with monsters should be careful lest he thereby become a
+    monster. And if thou gaze long into an abyss, the abyss will also gaze
+    into thee.
+
+- author: marcus-aurelius
+  author_name: Marcus Aurelius
+  era: stoic
+  work: meditations
+  title: 'Meditations'
+  translator: George Long
+  pub_year: 1862
+  source: 'gutenberg:15877'
+  themes: [aphorisms]
+  text: >
+    Begin the morning by saying to thyself, I shall meet with the busybody,
+    the ungrateful, arrogant, deceitful, envious, unsocial. All these things
+    happen to them by reason of their ignorance of what is good and evil.
+
+- author: marcus-aurelius
+  author_name: Marcus Aurelius
+  era: stoic
+  work: meditations
+  title: 'Meditations'
+  translator: George Long
+  pub_year: 1862
+  source: 'gutenberg:15877'
+  themes: [aphorisms]
+  text: >
+    Time is like a river made up of the events which happen, and a violent
+    stream; for as soon as a thing has been seen, it is carried away, and
+    another comes in its place, and this will be carried away too.
+
+- author: epictetus
+  author_name: Epictetus
+  era: stoic
+  work: the-enchiridion
+  title: 'The Enchiridion'
+  translator: Thomas Wentworth Higginson
+  pub_year: 1865
+  source: 'gutenberg:45109'
+  themes: [aphorisms]
+  text: >
+    Men are disturbed not by things, but by the views which they take of
+    things. Thus death is nothing terrible, else it would have appeared so to
+    Socrates. But the terror consists in our notion of death, that it is
+    terrible. When, therefore, we are hindered or disturbed, or grieved, let
+    us never impute it to others, but to ourselves—that is, to our own views.
+
+- author: hammett
+  author_name: Dashiell Hammett
+  era: hardboiled
+  work: the-maltese-falcon
+  title: 'The Maltese Falcon'
+  pub_year: 1930
+  source: 'gutenberg:77600'
+  themes: [hardboiled]
+  text: >
+    Samuel Spade’s jaw was long and bony, his chin a jutting v under the more
+    flexible v of his mouth. His nostrils curved back to make another,
+    smaller, v. His yellow-grey eyes were horizontal. The v motif was picked
+    up again by thickish brows rising outward from twin creases above a hooked
+    nose, and his pale brown hair grew down—from high flat temples—in a point
+    on his forehead. He looked rather pleasantly like a blond satan.
+
+- author: hammett
+  author_name: Dashiell Hammett
+  era: hardboiled
+  work: the-maltese-falcon
+  title: 'The Maltese Falcon'
+  pub_year: 1930
+  source: 'gutenberg:77600'
+  themes: [hardboiled]
+  text: >
+    Spade sat down in the armchair beside the table and without any
+    preliminary, without an introductory remark of any sort, began to tell the
+    girl about a thing that had happened some years before in the Northwest.
+    He talked in a steady matter-of-fact voice that was devoid of emphasis or
+    pauses, though now and then he repeated a sentence slightly rearranged, as
+    if it were important that each detail be related exactly as it had
+    happened.
+
+- author: conrad
+  author_name: Joseph Conrad
+  era: modernist
+  work: the-secret-agent
+  title: 'The Secret Agent'
+  pub_year: 1907
+  source: 'gutenberg:974'
+  themes: [hardboiled]
+  text: >
+    Mr Verloc, going out in the morning, left his shop nominally in charge of
+    his brother-in-law. It could be done, because there was very little
+    business at any time, and practically none at all before the evening. Mr
+    Verloc cared but little about his ostensible business. And, moreover, his
+    wife was in charge of his brother-in-law.
+
+- author: conrad
+  author_name: Joseph Conrad
+  era: modernist
+  work: heart-of-darkness
+  title: 'Heart of Darkness'
+  pub_year: 1902
+  source: 'gutenberg:219'
+  themes: [hardboiled]
+  text: >
+    The sea-reach of the Thames stretched before us like the beginning of an
+    interminable waterway. In the offing the sea and the sky were welded
+    together without a joint, and in the luminous space the tanned sails of
+    the barges drifting up with the tide seemed to stand still in red clusters
+    of canvas sharply peaked, with gleams of varnished sprits.
+
+- author: conrad
+  author_name: Joseph Conrad
+  era: modernist
+  work: heart-of-darkness
+  title: 'Heart of Darkness'
+  pub_year: 1902
+  source: 'gutenberg:219'
+  themes: [hardboiled]
+  text: >
+    The offing was barred by a black bank of clouds, and the tranquil waterway
+    leading to the uttermost ends of the earth flowed sombre under an overcast
+    sky—seemed to lead into the heart of an immense darkness.
+
+- author: fitzgerald
+  author_name: F. Scott Fitzgerald
+  era: modernist
+  work: the-great-gatsby
+  title: 'The Great Gatsby'
+  pub_year: 1925
+  source: 'gutenberg:64317'
+  themes: [modernist]
+  text: >
+    He smiled understandingly—much more than understandingly. It was one of
+    those rare smiles with a quality of eternal reassurance in it, that you
+    may come across four or five times in life. It faced—or seemed to face—the
+    whole eternal world for an instant, and then concentrated on you with an
+    irresistible prejudice in your favour.
+
+- author: fitzgerald
+  author_name: F. Scott Fitzgerald
+  era: modernist
+  work: the-great-gatsby
+  title: 'The Great Gatsby'
+  pub_year: 1925
+  source: 'gutenberg:64317'
+  themes: [modernist]
+  text: >
+    There was music from my neighbour’s house through the summer nights. In
+    his blue gardens men and girls came and went like moths among the
+    whisperings and the champagne and the stars.
+
+- author: fitzgerald
+  author_name: F. Scott Fitzgerald
+  era: modernist
+  work: the-great-gatsby
+  title: 'The Great Gatsby'
+  pub_year: 1925
+  source: 'gutenberg:64317'
+  themes: [modernist]
+  text: >
+    He had come a long way to this blue lawn, and his dream must have seemed
+    so close that he could hardly fail to grasp it. He did not know that it
+    was already behind him, somewhere back in that vast obscurity beyond the
+    city, where the dark fields of the republic rolled on under the night.
+
+- author: hemingway
+  author_name: Ernest Hemingway
+  era: modernist
+  work: the-sun-also-rises
+  title: 'The Sun Also Rises'
+  pub_year: 1926
+  source: 'gutenberg:67138'
+  themes: [modernist]
+  text: >
+    Robert Cohn was once middleweight boxing champion of Princeton. Do not
+    think that I am very much impressed by that as a boxing title, but it
+    meant a lot to Cohn. He cared nothing for boxing, in fact he disliked it,
+    but he learned it painfully and thoroughly to counteract the feeling of
+    inferiority and shyness he had felt on being treated as a Jew at
+    Princeton.
+
+- author: hemingway
+  author_name: Ernest Hemingway
+  era: modernist
+  work: the-sun-also-rises
+  title: 'The Sun Also Rises'
+  pub_year: 1926
+  source: 'gutenberg:67138'
+  themes: [modernist]
+  text: >
+    The fiesta was really started. It kept up day and night for seven days.
+    The dancing kept up, the drinking kept up, the noise went on. The things
+    that happened could only have happened during a fiesta. Everything became
+    quite unreal finally and it seemed as though nothing could have any
+    consequences.
+
+- author: woolf
+  author_name: Virginia Woolf
+  era: modernist
+  work: mrs-dalloway
+  title: 'Mrs. Dalloway'
+  pub_year: 1925
+  source: 'gutenberg:71865'
+  themes: [modernist]
+  text: >
+    Mrs. Dalloway said she would buy the flowers herself. For Lucy had her
+    work cut out for her. The doors would be taken off their hinges;
+    Rumpelmayer’s men were coming. And then, thought Clarissa Dalloway, what a
+    morning--fresh as if issued to children on a beach.
+
+- author: woolf
+  author_name: Virginia Woolf
+  era: modernist
+  work: mrs-dalloway
+  title: 'Mrs. Dalloway'
+  pub_year: 1925
+  source: 'gutenberg:71865'
+  themes: [modernist]
+  text: >
+    In people’s eyes, in the swing, tramp, and trudge; in the bellow and the
+    uproar; the carriages, motor cars, omnibuses, vans, sandwich men shuffling
+    and swinging; brass bands; barrel organs; in the triumph and the jingle
+    and the strange high singing of some aeroplane overhead was what she
+    loved; life; London; this moment of June.
+
+- author: poe
+  author_name: Edgar Allan Poe
+  era: gothic
+  work: the-fall-of-the-house-of-usher
+  title: 'The Fall of the House of Usher'
+  pub_year: 1839
+  source: 'gutenberg:2148'
+  themes: [gothic]
+  text: >
+    During the whole of a dull, dark, and soundless day in the autumn of the
+    year, when the clouds hung oppressively low in the heavens, I had been
+    passing alone, on horseback, through a singularly dreary tract of country;
+    and at length found myself, as the shades of the evening drew on, within
+    view of the melancholy House of Usher.
+
+- author: poe
+  author_name: Edgar Allan Poe
+  era: gothic
+  work: the-masque-of-the-red-death
+  title: 'The Masque of the Red Death'
+  pub_year: 1842
+  source: 'gutenberg:2148'
+  themes: [gothic]
+  text: >
+    And now was acknowledged the presence of the Red Death. He had come like a
+    thief in the night. And one by one dropped the revellers in the
+    blood-bedewed halls of their revel, and died each in the despairing
+    posture of his fall. And the life of the ebony clock went out with that of
+    the last of the gay. And the flames of the tripods expired. And Darkness
+    and Decay and the Red Death held illimitable dominion over all.
+
+- author: wilde
+  author_name: Oscar Wilde
+  era: victorian
+  work: the-picture-of-dorian-gray
+  title: 'The Picture of Dorian Gray'
+  pub_year: 1891
+  source: 'gutenberg:174'
+  themes: [gothic]
+  text: >
+    The studio was filled with the rich odour of roses, and when the light
+    summer wind stirred amidst the trees of the garden, there came through the
+    open door the heavy scent of the lilac, or the more delicate perfume of
+    the pink-flowering thorn.
+
+- author: wilde
+  author_name: Oscar Wilde
+  era: victorian
+  work: the-picture-of-dorian-gray
+  title: 'The Picture of Dorian Gray'
+  pub_year: 1891
+  source: 'gutenberg:174'
+  themes: [gothic]
+  text: >
+    Experience was of no ethical value. It was merely the name men gave to
+    their mistakes. Moralists had, as a rule, regarded it as a mode of
+    warning, had claimed for it a certain ethical efficacy in the formation of
+    character, had praised it as something that taught us what to follow and
+    showed us what to avoid. But there was no motive power in experience.
