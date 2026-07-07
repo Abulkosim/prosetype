@@ -1,0 +1,214 @@
+import { useEffect, useRef, useState, type ReactElement } from 'react';
+
+import { Epigraph } from '../components/Epigraph';
+import { ResultView } from '../result/ResultView';
+import { Hud } from './Hud';
+import { PassageBoard } from './PassageBoard';
+import { useTypingStore } from './typingStore';
+
+/**
+ * The typing stage (plan §9.3). A visually hidden textarea holds focus;
+ * chars arrive via native `beforeinput` (composition-safe), Backspace/Tab/Esc
+ * via `keydown`. Timestamps are `performance.now()` captured first thing in
+ * each handler; the store appends to the engine synchronously and React
+ * renders from the derived snapshot.
+ */
+export function TypingStage(): ReactElement {
+  const phase = useTypingStore((s) => s.phase);
+  const passage = useTypingStore((s) => s.passage);
+  const snapshot = useTypingStore((s) => s.snapshot);
+  const completedRun = useTypingStore((s) => s.completedRun);
+
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const composingRef = useRef(false);
+  const blurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [unfocused, setUnfocused] = useState(false);
+
+  // Initial passage load (skipped when navigating back to a live run).
+  useEffect(() => {
+    if (useTypingStore.getState().passage === null) {
+      void useTypingStore.getState().loadNext();
+    }
+  }, []);
+
+  // Regain focus whenever a fresh run becomes typeable.
+  useEffect(() => {
+    if (phase === 'typing') textareaRef.current?.focus();
+  }, [phase]);
+
+  // Native listeners on the hidden textarea: beforeinput gives inputType +
+  // data with a cancelable event (React's synthetic onBeforeInput does not).
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea === null) return;
+
+    const onBeforeInput = (e: InputEvent): void => {
+      const ts = performance.now(); // before any other work
+      if (e.inputType.startsWith('insertFrom')) {
+        e.preventDefault(); // paste/drop/autofill never reach the engine
+        return;
+      }
+      // Ignore everything between compositionstart and compositionend
+      // (composition beforeinput is not reliably cancelable — don't try).
+      if (composingRef.current || e.isComposing || e.inputType === 'insertCompositionText') {
+        return;
+      }
+      e.preventDefault(); // the textarea itself stays empty
+      if (e.inputType !== 'insertText' || e.data === null) return;
+      const store = useTypingStore.getState();
+      for (const char of e.data) {
+        if (char === ' ') store.commitSpace(ts);
+        else store.typeChar(char, ts);
+      }
+    };
+
+    const onInput = (): void => {
+      // Anything that slipped past preventDefault (e.g. composition) is
+      // discarded — the engine, not the textarea, holds the typed state.
+      if (!composingRef.current) textarea.value = '';
+    };
+
+    const onCompositionStart = (): void => {
+      composingRef.current = true;
+    };
+    const onCompositionEnd = (): void => {
+      composingRef.current = false;
+      textarea.value = ''; // composed text is ignored (§9.3)
+    };
+
+    const onKeyDown = (e: KeyboardEvent): void => {
+      const ts = performance.now();
+      useTypingStore.getState().setCapsLock(e.getModifierState('CapsLock'));
+      if (e.key === 'Backspace') {
+        e.preventDefault();
+        useTypingStore.getState().backspace(ts, e.ctrlKey || e.altKey);
+      }
+    };
+    const onKeyUp = (e: KeyboardEvent): void => {
+      useTypingStore.getState().setCapsLock(e.getModifierState('CapsLock'));
+    };
+    const onPaste = (e: ClipboardEvent): void => {
+      e.preventDefault();
+    };
+
+    textarea.addEventListener('beforeinput', onBeforeInput);
+    textarea.addEventListener('input', onInput);
+    textarea.addEventListener('compositionstart', onCompositionStart);
+    textarea.addEventListener('compositionend', onCompositionEnd);
+    textarea.addEventListener('keydown', onKeyDown);
+    textarea.addEventListener('keyup', onKeyUp);
+    textarea.addEventListener('paste', onPaste);
+    return () => {
+      textarea.removeEventListener('beforeinput', onBeforeInput);
+      textarea.removeEventListener('input', onInput);
+      textarea.removeEventListener('compositionstart', onCompositionStart);
+      textarea.removeEventListener('compositionend', onCompositionEnd);
+      textarea.removeEventListener('keydown', onKeyDown);
+      textarea.removeEventListener('keyup', onKeyUp);
+      textarea.removeEventListener('paste', onPaste);
+    };
+  }, []);
+
+  // Document-level keys while the stage is up: Tab = next passage (also from
+  // the result and error views, and never moves focus), Esc = restart, and
+  // printable keys never reach browser chrome (Firefox quick-find on ' " /) —
+  // if focus escaped the textarea, swallow the key and refocus.
+  useEffect(() => {
+    const onDocKeyDown = (e: KeyboardEvent): void => {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        void useTypingStore.getState().loadNext();
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        useTypingStore.getState().restart();
+        return;
+      }
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (document.activeElement !== textareaRef.current) {
+          e.preventDefault();
+          textareaRef.current?.focus();
+        }
+      }
+    };
+    document.addEventListener('keydown', onDocKeyDown, true);
+    return () => {
+      document.removeEventListener('keydown', onDocKeyDown, true);
+    };
+  }, []);
+
+  // Focus loss (§9.3): after 1s unfocused, dim the stage and offer refocus.
+  // The engine's clock is wall time, so the timer keeps running regardless.
+  const handleBlur = (): void => {
+    blurTimerRef.current = setTimeout(() => {
+      setUnfocused(true);
+    }, 1000);
+  };
+  const handleFocus = (): void => {
+    if (blurTimerRef.current !== null) {
+      clearTimeout(blurTimerRef.current);
+      blurTimerRef.current = null;
+    }
+    setUnfocused(false);
+  };
+  useEffect(() => {
+    return () => {
+      if (blurTimerRef.current !== null) clearTimeout(blurTimerRef.current);
+    };
+  }, []);
+
+  return (
+    <section aria-label="Typing stage" onClick={() => textareaRef.current?.focus()}>
+      <textarea
+        ref={textareaRef}
+        className="absolute h-px w-px resize-none opacity-0"
+        aria-label="Type the passage"
+        autoFocus
+        autoCapitalize="off"
+        autoCorrect="off"
+        autoComplete="off"
+        spellCheck={false}
+        tabIndex={-1}
+        onBlur={handleBlur}
+        onFocus={handleFocus}
+      />
+
+      {phase === 'loading' ? <p className="subtitle text-smoke">loading&hellip;</p> : null}
+
+      {phase === 'error' ? (
+        <div>
+          <p className="subtitle text-smoke">could not load a passage</p>
+          <p className="subtitle mt-4 text-smoke">tab to retry</p>
+        </div>
+      ) : null}
+
+      {phase === 'typing' && snapshot !== null && passage !== null ? (
+        <div className="relative">
+          <div className={`transition-opacity duration-150 ${unfocused ? 'opacity-30' : ''}`}>
+            <Hud />
+            <PassageBoard snapshot={snapshot} />
+            <div className="mt-10">
+              <Epigraph passage={passage} />
+            </div>
+          </div>
+          {unfocused ? (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="subtitle text-bone">click to refocus</span>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {phase === 'complete' && completedRun !== null && passage !== null ? (
+        <ResultView
+          run={completedRun}
+          passage={passage}
+          onNext={() => {
+            void useTypingStore.getState().loadNext();
+          }}
+        />
+      ) : null}
+    </section>
+  );
+}

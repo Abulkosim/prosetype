@@ -1,6 +1,8 @@
 import type { ReactElement, ReactNode } from 'react';
 import { NavLink } from 'react-router';
 
+import { useTypingStore } from '../stage/typingStore';
+
 function BarLink({ to, label }: { to: string; label: string }): ReactElement {
   return (
     <NavLink
@@ -14,6 +16,13 @@ function BarLink({ to, label }: { to: string; label: string }): ReactElement {
       {label}
     </NavLink>
   );
+}
+
+/** Caps Lock tag in the bottom bar (§9.3), fed by keydown/keyup getModifierState. */
+function CapsLockTag(): ReactElement | null {
+  const capsLock = useTypingStore((s) => s.capsLock);
+  if (!capsLock) return null;
+  return <span className="subtitle justify-self-end text-tungsten">caps lock</span>;
 }
 
 /**
@@ -41,8 +50,10 @@ export function Letterbox({ children }: { children: ReactNode }): ReactElement {
         </div>
       </main>
 
-      <footer className="flex h-10 shrink-0 items-center justify-center bg-bar px-6">
-        <p className="subtitle text-smoke">tab next &middot; esc restart</p>
+      <footer className="grid h-10 shrink-0 grid-cols-3 items-center bg-bar px-6">
+        <span aria-hidden="true" />
+        <p className="subtitle justify-self-center text-smoke">tab next &middot; esc restart</p>
+        <CapsLockTag />
       </footer>
     </div>
   );
