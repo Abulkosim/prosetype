@@ -1,0 +1,166 @@
+import { computeStats } from '@prosetype/engine';
+import type {
+  AuthorListItem,
+  PostProfilesResponse,
+  PostResultsResponse,
+  ProfileStats,
+  ThemeListItem,
+} from '@prosetype/schema';
+import { createHash } from 'node:crypto';
+import type { FastifyInstance } from 'fastify';
+import postgres from 'postgres';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { buildApp } from '../src/build.ts';
+import { loadConfig } from '../src/config.ts';
+import { testEnv, typeRun } from './support.ts';
+
+const DB_URL = process.env['DATABASE_URL'] ?? testEnv.DATABASE_URL;
+
+/**
+ * These tests need a live Postgres (plan §11: "real Postgres in CI via service
+ * container"). When one is not reachable they skip rather than fail, so a plain
+ * `pnpm test` on a machine without a DB stays green; CI always has one.
+ */
+async function canConnect(url: string): Promise<boolean> {
+  const sql = postgres(url, { max: 1, connect_timeout: 3, onnotice: () => {} });
+  try {
+    await sql`select 1`;
+    return true;
+  } catch {
+    return false;
+  } finally {
+    await sql.end({ timeout: 1 });
+  }
+}
+
+const dbAvailable = await canConnect(DB_URL);
+if (!dbAvailable) {
+  console.warn(`[integration] skipping — no Postgres reachable at ${DB_URL}`);
+}
+const suite = dbAvailable ? describe : describe.skip;
+
+// Distinctive slugs so the fixtures never collide with the seeded corpus and
+// are trivially cleaned up.
+const AUTHOR_SLUG = 'zz-it-author';
+const THEME = 'zz-it-theme';
+const TEXT_A = 'The night was cold, and the rain fell without mercy.';
+const TEXT_B = 'He said nothing; the silence answered for him.';
+
+function hash(text: string): string {
+  return createHash('sha256').update(text).digest('hex');
+}
+
+suite('API integration (real Postgres)', () => {
+  const sql = postgres(DB_URL, { onnotice: () => {} });
+  let app: FastifyInstance;
+  let profileId: string;
+  let passageAId: number;
+  let passageBId: number;
+
+  async function seedPassage(text: string, themes: string[], workId: number): Promise<number> {
+    const words = text.split(' ').length;
+    const [row] = await sql<{ id: number }[]>`
+      insert into passages (work_id, text, text_hash, char_count, word_count, difficulty, band, themes, language)
+      values (${workId}, ${text}, ${hash(text)}, ${text.length}, ${words}, ${25}, ${'standard'}, ${sql.array(themes)}, ${'en'})
+      on conflict (text_hash) do update set char_count = excluded.char_count
+      returning id`;
+    if (row === undefined) throw new Error('passage seed failed');
+    return row.id;
+  }
+
+  beforeAll(async () => {
+    const [author] = await sql<{ id: number }[]>`
+      insert into authors (slug, name, era) values (${AUTHOR_SLUG}, ${'ZZ Integration Author'}, ${'test'})
+      on conflict (slug) do update set name = excluded.name returning id`;
+    const authorId = author?.id;
+    if (authorId === undefined) throw new Error('author seed failed');
+    const [work] = await sql<{ id: number }[]>`
+      insert into works (author_id, slug, title, source, language)
+      values (${authorId}, ${'zz-it-work'}, ${'ZZ Integration Work'}, ${'test'}, ${'en'})
+      on conflict (slug) do update set title = excluded.title returning id`;
+    const workId = work?.id;
+    if (workId === undefined) throw new Error('work seed failed');
+    passageAId = await seedPassage(TEXT_A, [THEME], workId);
+    passageBId = await seedPassage(TEXT_B, [THEME], workId);
+
+    app = await buildApp(loadConfig({ ...testEnv, DATABASE_URL: DB_URL }));
+
+    const res = await app.inject({ method: 'POST', url: '/api/v1/profiles' });
+    profileId = res.json<PostProfilesResponse>().id;
+  });
+
+  afterAll(async () => {
+    if (profileId !== undefined) {
+      await sql`delete from results where profile_id = ${profileId}`;
+      await sql`delete from profiles where id = ${profileId}`;
+    }
+    await sql`delete from passages where text_hash in (${hash(TEXT_A)}, ${hash(TEXT_B)})`;
+    await sql`delete from works where slug = 'zz-it-work'`;
+    await sql`delete from authors where slug = ${AUTHOR_SLUG}`;
+    if (app !== undefined) await app.close();
+    await sql.end({ timeout: 5 });
+  });
+
+  async function submit(passageId: number, text: string, durationMs = 6000): Promise<PostResultsResponse> {
+    const charEvents = typeRun(text, durationMs);
+    const clientStats = computeStats(text, charEvents);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/results',
+      payload: { profileId, passageId, clientStats, charEvents },
+    });
+    expect(res.statusCode).toBe(201);
+    return res.json<PostResultsResponse>();
+  }
+
+  it('a fresh profile has empty stats', async () => {
+    const res = await app.inject({ method: 'GET', url: `/api/v1/profiles/${profileId}/stats` });
+    expect(res.statusCode).toBe(200);
+    const stats = res.json<ProfileStats>();
+    expect(stats.totals.tests).toBe(0);
+    expect(stats.bestWpm).toBeNull();
+    expect(stats.history).toEqual([]);
+  });
+
+  it('persists a submitted result and surfaces it in stats', async () => {
+    const result = await submit(passageAId, TEXT_A);
+    expect(result.clientMatch).toBe(true);
+    expect(result.serverStats.wpm).toBeGreaterThan(0);
+
+    const res = await app.inject({ method: 'GET', url: `/api/v1/profiles/${profileId}/stats` });
+    const stats = res.json<ProfileStats>();
+    expect(stats.totals.tests).toBe(1);
+    expect(stats.totals.timeTypedMs).toBeGreaterThanOrEqual(6000);
+    expect(stats.bestWpm?.passageId).toBe(passageAId);
+    expect(stats.avgWpmLast10).toBeCloseTo(result.serverStats.wpm, 2);
+    expect(stats.history[0]?.passageId).toBe(passageAId);
+    expect(stats.history[0]?.authorName).toBe('ZZ Integration Author');
+    // TEXT_A has punctuation and letters, so a tax is sampled.
+    expect(stats.punctuationTaxAvgPct).not.toBeNull();
+  });
+
+  it('aggregates per author across multiple results', async () => {
+    await submit(passageBId, TEXT_B);
+    const res = await app.inject({ method: 'GET', url: `/api/v1/profiles/${profileId}/stats` });
+    const stats = res.json<ProfileStats>();
+    expect(stats.totals.tests).toBe(2);
+    const author = stats.perAuthor.find((a) => a.authorSlug === AUTHOR_SLUG);
+    expect(author).toBeDefined();
+    expect(author?.tests).toBe(2);
+    expect(author?.avgWpm).toBeGreaterThan(0);
+    expect(stats.history).toHaveLength(2);
+  });
+
+  it('GET /authors and /themes include the seeded fixtures', async () => {
+    const authors = (await app.inject({ method: 'GET', url: '/api/v1/authors' })).json<
+      AuthorListItem[]
+    >();
+    const mine = authors.find((a) => a.slug === AUTHOR_SLUG);
+    expect(mine?.passageCount).toBe(2);
+
+    const themes = (await app.inject({ method: 'GET', url: '/api/v1/themes' })).json<
+      ThemeListItem[]
+    >();
+    expect(themes.find((t) => t.theme === THEME)?.passageCount).toBe(2);
+  });
+});

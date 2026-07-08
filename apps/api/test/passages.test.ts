@@ -75,6 +75,34 @@ function createStubRepo(fixtures: Passage[]): PassageRepository & {
     async findById(id: number): Promise<Passage | null> {
       return fixtures.find((p) => p.id === id) ?? null;
     },
+    async listAuthors() {
+      const bySlug = new Map<string, { slug: string; name: string; era: string | null; count: number }>();
+      for (const p of fixtures) {
+        const existing = bySlug.get(p.author.slug);
+        if (existing === undefined) {
+          bySlug.set(p.author.slug, {
+            slug: p.author.slug,
+            name: p.author.name,
+            era: p.author.era,
+            count: 1,
+          });
+        } else {
+          existing.count += 1;
+        }
+      }
+      return [...bySlug.values()]
+        .map((a) => ({ slug: a.slug, name: a.name, era: a.era, passageCount: a.count }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    },
+    async listThemes() {
+      const counts = new Map<string, number>();
+      for (const p of fixtures) {
+        for (const theme of p.themes) counts.set(theme, (counts.get(theme) ?? 0) + 1);
+      }
+      return [...counts.entries()]
+        .map(([theme, passageCount]) => ({ theme, passageCount }))
+        .sort((a, b) => a.theme.localeCompare(b.theme));
+    },
   };
 }
 

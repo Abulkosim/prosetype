@@ -38,6 +38,9 @@ importers:
       '@fastify/rate-limit':
         specifier: ^11.1.0
         version: 11.1.0
+      '@prosetype/engine':
+        specifier: workspace:*
+        version: link:../../packages/engine
       '@prosetype/schema':
         specifier: workspace:*
         version: link:../../packages/schema

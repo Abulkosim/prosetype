@@ -1,5 +1,12 @@
-import { passageSchema, type Passage } from '@prosetype/schema';
-import { and, arrayContains, eq, notInArray, sql, type SQL } from 'drizzle-orm';
+import {
+  authorListItemSchema,
+  passageSchema,
+  themeListItemSchema,
+  type AuthorListItem,
+  type Passage,
+  type ThemeListItem,
+} from '@prosetype/schema';
+import { and, arrayContains, asc, eq, notInArray, sql, type SQL } from 'drizzle-orm';
 import type { Db } from '../db/client.ts';
 import { authors, passages, works } from '../db/schema.ts';
 import type { PassageFilter, PassageRepository } from './repository.ts';
@@ -68,6 +75,33 @@ export function createDrizzlePassageRepository(db: Db): PassageRepository {
       const rows = await baseQuery().where(eq(passages.id, id)).limit(1);
       const row = rows[0];
       return row === undefined ? null : passageSchema.parse(row);
+    },
+
+    async listAuthors(): Promise<AuthorListItem[]> {
+      const rows = await db
+        .select({
+          slug: authors.slug,
+          name: authors.name,
+          era: authors.era,
+          passageCount: sql<number>`count(${passages.id})::int`,
+        })
+        .from(authors)
+        .innerJoin(works, eq(works.authorId, authors.id))
+        .innerJoin(passages, eq(passages.workId, works.id))
+        .groupBy(authors.slug, authors.name, authors.era)
+        .orderBy(asc(authors.name));
+      return rows.map((r) => authorListItemSchema.parse(r));
+    },
+
+    async listThemes(): Promise<ThemeListItem[]> {
+      // themes is a text[] column; unnest to one row per (passage, theme).
+      const rows = (await db.execute(
+        sql`select theme, count(*)::int as count
+            from ${passages}, unnest(${passages.themes}) as theme
+            group by theme
+            order by theme`,
+      )) as unknown as Array<{ theme: string; count: number }>;
+      return rows.map((r) => themeListItemSchema.parse({ theme: r.theme, passageCount: r.count }));
     },
   };
 }

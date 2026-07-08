@@ -1,0 +1,177 @@
+import type { ProfileStats } from '@prosetype/schema';
+import type { FastifyInstance } from 'fastify';
+import { afterEach, describe, expect, it } from 'vitest';
+import { buildApp } from '../src/build.ts';
+import { loadConfig } from '../src/config.ts';
+import { createStubPassageRepo } from './support.ts';
+import type { ProfileRepository } from '../src/profiles/repository.ts';
+import type {
+  ProfileAggregates,
+  ResultRepository,
+  StoredResultRow,
+} from '../src/results/repository.ts';
+import { shortPassage, testEnv, typeRun } from './support.ts';
+
+const PROFILE_ID = '33333333-3333-4333-8333-333333333333';
+
+function fixedProfileRepo(ids: string[]): ProfileRepository {
+  return {
+    async create() {
+      return PROFILE_ID;
+    },
+    async exists(id: string) {
+      return ids.includes(id);
+    },
+  };
+}
+
+function resultRepoWith(
+  aggregates: ProfileAggregates,
+  recent: StoredResultRow[],
+): ResultRepository {
+  return {
+    async insert() {
+      return 1;
+    },
+    async aggregatesForProfile() {
+      return aggregates;
+    },
+    async recentForProfile() {
+      return recent;
+    },
+  };
+}
+
+async function build(profileRepo: ProfileRepository, resultRepo: ResultRepository) {
+  return buildApp(loadConfig(testEnv), {
+    passageRepo: createStubPassageRepo([shortPassage]),
+    profileRepo,
+    resultRepo,
+  });
+}
+
+describe('profile routes', () => {
+  let app: FastifyInstance | null = null;
+  afterEach(async () => {
+    if (app !== null) {
+      await app.close();
+      app = null;
+    }
+  });
+
+  it('POST /profiles creates a profile and returns its uuid', async () => {
+    app = await build(
+      fixedProfileRepo([]),
+      resultRepoWith(
+        { tests: 0, timeTypedMs: 0, avgAccuracy: null, avgConsistency: null, best: null, perAuthor: [] },
+        [],
+      ),
+    );
+    const res = await app.inject({ method: 'POST', url: '/api/v1/profiles' });
+    expect(res.statusCode).toBe(201);
+    expect(res.json()).toEqual({ id: PROFILE_ID });
+  });
+
+  it('GET /profiles/:id/stats returns empty aggregates for a fresh profile', async () => {
+    app = await build(
+      fixedProfileRepo([PROFILE_ID]),
+      resultRepoWith(
+        { tests: 0, timeTypedMs: 0, avgAccuracy: null, avgConsistency: null, best: null, perAuthor: [] },
+        [],
+      ),
+    );
+    const res = await app.inject({ method: 'GET', url: `/api/v1/profiles/${PROFILE_ID}/stats` });
+    expect(res.statusCode).toBe(200);
+    const stats = res.json<ProfileStats>();
+    expect(stats.totals).toEqual({ tests: 0, timeTypedMs: 0 });
+    expect(stats.bestWpm).toBeNull();
+    expect(stats.avgWpmLast10).toBeNull();
+    expect(stats.punctuationTaxAvgPct).toBeNull();
+    expect(stats.perAuthor).toEqual([]);
+    expect(stats.history).toEqual([]);
+  });
+
+  it('GET /profiles/:id/stats assembles totals, best, per-author, and history', async () => {
+    const row: StoredResultRow = {
+      id: 7,
+      passageId: shortPassage.id,
+      wpm: 57,
+      rawWpm: 60,
+      accuracy: 95,
+      consistency: 88,
+      durationMs: 5000,
+      clientMatch: true,
+      createdAt: new Date('2026-07-09T10:00:00.000Z'),
+      band: 'warmup',
+      workTitle: 'A Work',
+      authorName: 'Anon',
+      authorSlug: 'anon',
+      passageText: shortPassage.text,
+      charEvents: typeRun(shortPassage.text, 5000),
+    };
+    app = await build(
+      fixedProfileRepo([PROFILE_ID]),
+      resultRepoWith(
+        {
+          tests: 1,
+          timeTypedMs: 5000,
+          avgAccuracy: 95,
+          avgConsistency: 88,
+          best: { wpm: 57, passageId: shortPassage.id, workTitle: 'A Work', authorName: 'Anon' },
+          perAuthor: [{ authorSlug: 'anon', authorName: 'Anon', tests: 1, avgWpm: 57 }],
+        },
+        [row],
+      ),
+    );
+    const res = await app.inject({ method: 'GET', url: `/api/v1/profiles/${PROFILE_ID}/stats` });
+    expect(res.statusCode).toBe(200);
+    const stats = res.json<ProfileStats>();
+    expect(stats.totals).toEqual({ tests: 1, timeTypedMs: 5000 });
+    expect(stats.bestWpm).toEqual({
+      wpm: 57,
+      passageId: shortPassage.id,
+      workTitle: 'A Work',
+      authorName: 'Anon',
+    });
+    expect(stats.avgWpmLast10).toBe(57);
+    expect(stats.perAuthor).toEqual([
+      { authorSlug: 'anon', authorName: 'Anon', tests: 1, avgWpm: 57 },
+    ]);
+    expect(stats.history).toHaveLength(1);
+    expect(stats.history[0]).toMatchObject({
+      id: 7,
+      wpm: 57,
+      createdAt: '2026-07-09T10:00:00.000Z',
+      authorSlug: 'anon',
+    });
+  });
+
+  it('rejects a non-uuid profile id with 400', async () => {
+    app = await build(
+      fixedProfileRepo([]),
+      resultRepoWith(
+        { tests: 0, timeTypedMs: 0, avgAccuracy: null, avgConsistency: null, best: null, perAuthor: [] },
+        [],
+      ),
+    );
+    const res = await app.inject({ method: 'GET', url: '/api/v1/profiles/not-a-uuid/stats' });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: 'BadRequest' });
+  });
+
+  it('returns 404 for an unknown profile', async () => {
+    app = await build(
+      fixedProfileRepo([]),
+      resultRepoWith(
+        { tests: 0, timeTypedMs: 0, avgAccuracy: null, avgConsistency: null, best: null, perAuthor: [] },
+        [],
+      ),
+    );
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/v1/profiles/${PROFILE_ID}/stats`,
+    });
+    expect(res.statusCode).toBe(404);
+    expect(res.json()).toMatchObject({ error: 'NotFound' });
+  });
+});

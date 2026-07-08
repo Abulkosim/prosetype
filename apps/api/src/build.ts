@@ -2,17 +2,25 @@ import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { AppConfig } from './config.ts';
-import { createDbClient } from './db/client.ts';
+import { createDbClient, type Db } from './db/client.ts';
 import { createDrizzlePassageRepository } from './passages/drizzle-repository.ts';
 import type { PassageRepository } from './passages/repository.ts';
+import { createDrizzleProfileRepository } from './profiles/drizzle-repository.ts';
+import type { ProfileRepository } from './profiles/repository.ts';
+import { createDrizzleResultRepository } from './results/drizzle-repository.ts';
+import type { ResultRepository } from './results/repository.ts';
 import { passageRoutes } from './routes/passages.ts';
+import { profileRoutes } from './routes/profiles.ts';
+import { resultRoutes } from './routes/results.ts';
 
 /**
  * Optional dependency overrides so tests can substitute the data layer
- * (unit tests run with a stubbed PassageRepository, no live Postgres).
+ * (unit tests run with stubbed repositories, no live Postgres).
  */
 export interface AppDeps {
   passageRepo?: PassageRepository;
+  profileRepo?: ProfileRepository;
+  resultRepo?: ResultRepository;
 }
 
 /**
@@ -32,19 +40,41 @@ export async function buildApp(config: AppConfig, deps: AppDeps = {}): Promise<F
     timeWindow: '1 minute',
   });
 
-  let passageRepo = deps.passageRepo;
-  if (passageRepo === undefined) {
-    // postgres.js connects lazily, so building the app never blocks on the DB.
-    const client = createDbClient(config.DATABASE_URL);
-    passageRepo = createDrizzlePassageRepository(client.db);
+  // Only touch Postgres if any repo was left to the default (tests inject all
+  // three). postgres.js connects lazily, so building never blocks on the DB.
+  const needsDb =
+    deps.passageRepo === undefined ||
+    deps.profileRepo === undefined ||
+    deps.resultRepo === undefined;
+  const client = needsDb ? createDbClient(config.DATABASE_URL) : null;
+  if (client !== null) {
     app.addHook('onClose', async () => {
       await client.sql.end();
     });
   }
+  const db = (): Db => {
+    if (client === null) throw new Error('db client not initialized');
+    return client.db;
+  };
+
+  const passageRepo = deps.passageRepo ?? createDrizzlePassageRepository(db());
+  const profileRepo = deps.profileRepo ?? createDrizzleProfileRepository(db());
+  const resultRepo = deps.resultRepo ?? createDrizzleResultRepository(db());
 
   app.get('/api/v1/healthz', async () => ({ ok: true as const }));
 
   await app.register(passageRoutes, { prefix: '/api/v1', repo: passageRepo });
+  await app.register(profileRoutes, {
+    prefix: '/api/v1',
+    profiles: profileRepo,
+    results: resultRepo,
+  });
+  await app.register(resultRoutes, {
+    prefix: '/api/v1',
+    profiles: profileRepo,
+    passages: passageRepo,
+    results: resultRepo,
+  });
 
   return app;
 }

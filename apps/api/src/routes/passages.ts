@@ -1,7 +1,8 @@
 import { bandSchema } from '@prosetype/schema';
-import type { FastifyInstance, FastifyReply } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { PassageFilter, PassageRepository } from '../passages/repository.ts';
+import { sendBadRequest, sendNotFound } from './http.ts';
 
 /** Max recent passage ids accepted in `exclude` (plan §8: "cap 20"). */
 export const MAX_EXCLUDE_IDS = 20;
@@ -25,17 +26,6 @@ const nextQuerySchema = z.object({
 const idParamsSchema = z.object({
   id: z.coerce.number().int().positive(),
 });
-
-function sendBadRequest(reply: FastifyReply, error: z.ZodError): FastifyReply {
-  return reply.code(400).send({
-    error: 'BadRequest',
-    message: z.prettifyError(error),
-  });
-}
-
-function sendNotFound(reply: FastifyReply, message: string): FastifyReply {
-  return reply.code(404).send({ error: 'NotFound', message });
-}
 
 function describeFilter(filter: PassageFilter): string {
   const parts = [
@@ -87,4 +77,9 @@ export async function passageRoutes(
     }
     return passage;
   });
+
+  // GET /authors and GET /themes power the /library page (plan §8, §9.1).
+  app.get('/authors', async () => repo.listAuthors());
+
+  app.get('/themes', async () => repo.listThemes());
 }

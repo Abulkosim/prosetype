@@ -1,4 +1,4 @@
-import type { Band, Passage } from '@prosetype/schema';
+import type { AuthorListItem, Band, Passage, ThemeListItem } from '@prosetype/schema';
 
 /**
  * Filters for random passage selection (plan §8, GET /passages/next).
@@ -23,4 +23,8 @@ export interface PassageRepository {
   findRandom(filter: PassageFilter): Promise<Passage | null>;
   /** A passage by id with full attribution, or null when absent. */
   findById(id: number): Promise<Passage | null>;
+  /** Authors that have at least one passage, with their passage counts (GET /authors). */
+  listAuthors(): Promise<AuthorListItem[]>;
+  /** Distinct themes across passages, with their passage counts (GET /themes). */
+  listThemes(): Promise<ThemeListItem[]>;
 }
