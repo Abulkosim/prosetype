@@ -85,6 +85,7 @@ export function PassageBoard({ snapshot }: { snapshot: EngineSnapshot }): ReactE
     >
       <div
         ref={wordsRef}
+        data-testid="passage"
         className="relative text-[1.35rem] leading-[2.1] tracking-[0.01em] transition-transform duration-200 ease-out"
       >
         {snapshot.status !== 'complete' ? (
