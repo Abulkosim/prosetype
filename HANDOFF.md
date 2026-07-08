@@ -1,3 +1,27 @@
+**Phase 2 is done — the product remembers.** Anonymous profiles, server-side stat recompute on every submitted run, a `/stats` page (aggregates, per-author table, history), and a `/library` page (browse by band/author/theme, click to start a filtered test). **163 tests pass** — 162 unit/integration across 5 packages plus the one Playwright smoke — with lint and typecheck clean. Four conventional commits, pushed to `main` on GitHub.
+
+**Gate 2 is a data audit — do this before Phase 3.** Bring up Postgres and the app:
+
+```
+docker --context desktop-linux compose up -d   # or use a local Postgres
+pnpm db:migrate && pnpm ingest                  # migrate + seed 30 passages
+pnpm dev                                         # api :3001 + web :5173
+```
+
+Then, typing ≥10 varied runs at http://localhost:5173:
+
+1. **Server matches client:** every run's `client_match` should be `true` (no "flagged" tag in the `/stats` history). Spot-check one run's `/stats` numbers against the result screen.
+2. **History survives reload:** finish a run, reload, open `/stats` — it's there.
+3. **Per-author aggregates are right:** cross-check the by-author table against a SQL count/avg (`select author_id, count(*), avg(wpm) from results ...`).
+4. **Library filters work:** clicking an author/theme/band on `/library` starts a matching test, and Tab keeps you within that pick.
+5. **Offline-save note:** stop the API mid-run, finish typing — the bottom bar shows a quiet "not saved" and the next run still works.
+
+Two environment notes that will bite: this machine currently has **no Node 24** (only 22.14), so `pnpm dev`/`pnpm ingest` — which rely on Node 24's native `.ts` type-stripping — won't run as-is; either install Node 24 (`nvm install 24`) or run the API via `pnpm dlx tsx apps/api/src/server.ts`. CI pins Node 24 so it's a non-issue there. Also, the local dev DB used this session was a **Homebrew Postgres 14**, not the docker one (docker daemon was down) — either works; `DATABASE_URL` is the same.
+
+When the data audit passes, Phase 3 is backlog-only — do not build without an explicit new instruction.
+
+---
+
 **Phase 1 is done — the product exists.** You can type Dostoevsky now. All 8 agents completed, 143 tests pass across 5 packages, working tree is clean with 5 conventional commits. Highlights:
 
 - **Engine** (`packages/engine`): pure TS, zero deps, live engine and replay share one event reducer so client stats and server verification are identical by construction. The `kogasa` consistency function was checked verbatim against Monkeytype's actual source. **Both adversarial verifiers passed it with zero findings** — worked examples, edge cases, and 200 seeded property-test runs all hold.
