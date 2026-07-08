@@ -7,7 +7,8 @@ import {
 import type { Passage } from '@prosetype/schema';
 import { create } from 'zustand';
 
-import { fetchNextPassage } from '../lib/api';
+import { fetchNextPassage, submitResult, type PassageQuery } from '../lib/api';
+import { ensureProfileId } from '../lib/profile';
 import { pushRecent } from '../lib/recent';
 import type { CompletedRun } from '../result/ResultView';
 
@@ -15,6 +16,9 @@ import type { CompletedRun } from '../result/ResultView';
 export const COMPLETION_HOLD_MS = 300;
 
 export type StagePhase = 'loading' | 'error' | 'typing' | 'complete';
+
+/** Result-submission state (§9.5). Only 'not-saved' surfaces in the UI. */
+export type SaveStatus = 'idle' | 'saving' | 'saved' | 'not-saved';
 
 /**
  * Thin zustand store wrapping the engine (plan §3). The engine is the source
@@ -34,10 +38,18 @@ interface TypingState {
   /** True when the current run followed an esc-restart of the same passage (§7.1). */
   restarted: boolean;
   capsLock: boolean;
+  /** Result-submission state for the current run (§9.5). */
+  saveStatus: SaveStatus;
+  /** Active library filter (§9.1); reused across Tab so a pick "sticks". */
+  filter: PassageQuery;
   /** Up to the last 20 passage ids, excluded from the next fetch (plan §8). */
   recentIds: readonly number[];
-  /** Tab: abandon the current run and fetch a new random passage. */
-  loadNext: () => Promise<void>;
+  /**
+   * Tab: abandon the current run and fetch a new random passage. An optional
+   * filter replaces the active one (a library pick); omitting it reuses the
+   * current filter so the pick persists across Tab.
+   */
+  loadNext: (filter?: PassageQuery) => Promise<void>;
   /** Esc: restart the same passage from scratch. */
   restart: () => void;
   typeChar: (char: string, timestampMs: number) => void;
@@ -50,11 +62,45 @@ interface TypingState {
 
 let inFlight = false;
 let holdTimer: ReturnType<typeof setTimeout> | null = null;
+/**
+ * Invalidation token for in-flight submissions: loading/restarting a run bumps
+ * it so a late submit resolution can't set a stale save status on a run the
+ * user already left.
+ */
+let submitToken = 0;
 
 function clearHold(): void {
   if (holdTimer !== null) {
     clearTimeout(holdTimer);
     holdTimer = null;
+  }
+}
+
+/** Submit a finished run fire-and-forget with one retry (§9.5). */
+async function submitCompletedRun(
+  passageId: number,
+  run: CompletedRun,
+  token: number,
+  set: (partial: Partial<TypingState>) => void,
+): Promise<void> {
+  const attempt = (): Promise<unknown> =>
+    ensureProfileId().then((profileId) =>
+      submitResult({
+        profileId,
+        passageId,
+        clientStats: run.stats,
+        charEvents: run.log,
+      }),
+    );
+  try {
+    try {
+      await attempt();
+    } catch {
+      await attempt(); // one retry (§9.5)
+    }
+    if (token === submitToken) set({ saveStatus: 'saved' });
+  } catch {
+    if (token === submitToken) set({ saveStatus: 'not-saved' });
   }
 }
 
@@ -67,12 +113,16 @@ export const useTypingStore = create<TypingState>()((set, get) => ({
   errorMessage: null,
   restarted: false,
   capsLock: false,
+  saveStatus: 'idle',
+  filter: {},
   recentIds: [],
 
-  loadNext: async () => {
+  loadNext: async (filter?: PassageQuery) => {
     if (inFlight) return; // one fetch at a time (also guards StrictMode's double effect)
     inFlight = true;
+    submitToken += 1; // invalidate any in-flight submission for the old run
     clearHold();
+    const nextFilter = filter ?? get().filter;
     set({
       phase: 'loading',
       engine: null,
@@ -80,9 +130,11 @@ export const useTypingStore = create<TypingState>()((set, get) => ({
       completedRun: null,
       errorMessage: null,
       restarted: false,
+      saveStatus: 'idle',
+      filter: nextFilter,
     });
     try {
-      const passage = await fetchNextPassage(get().recentIds);
+      const passage = await fetchNextPassage(get().recentIds, nextFilter);
       const engine = createEngine(passage.text);
       set({
         phase: 'typing',
@@ -101,6 +153,7 @@ export const useTypingStore = create<TypingState>()((set, get) => ({
   restart: () => {
     const { passage, snapshot } = get();
     if (passage === null) return;
+    submitToken += 1; // invalidate any in-flight submission for the abandoned run
     clearHold();
     const engine = createEngine(passage.text);
     set({
@@ -108,6 +161,7 @@ export const useTypingStore = create<TypingState>()((set, get) => ({
       engine,
       snapshot: engine.getSnapshot(),
       completedRun: null,
+      saveStatus: 'idle',
       // Mark restarted only when a run of this passage had actually started.
       restarted: get().restarted || (snapshot !== null && snapshot.status !== 'idle'),
     });
@@ -128,6 +182,13 @@ export const useTypingStore = create<TypingState>()((set, get) => ({
         log: engine.getLog(),
         restarted: get().restarted,
       };
+      const passageId = get().passage?.id;
+      // Submit as soon as the run finishes (§9.5, fire-and-forget), before the
+      // result view even appears; the token guards against a stale resolution.
+      if (passageId !== undefined) {
+        set({ saveStatus: 'saving' });
+        void submitCompletedRun(passageId, completedRun, submitToken, set);
+      }
       holdTimer = setTimeout(() => {
         holdTimer = null;
         set({ phase: 'complete', completedRun });
@@ -160,6 +221,7 @@ export const useTypingStore = create<TypingState>()((set, get) => ({
 export function resetTypingStore(): void {
   clearHold();
   inFlight = false;
+  submitToken += 1;
   useTypingStore.setState({
     phase: 'loading',
     passage: null,
@@ -169,6 +231,8 @@ export function resetTypingStore(): void {
     errorMessage: null,
     restarted: false,
     capsLock: false,
+    saveStatus: 'idle',
+    filter: {},
     recentIds: [],
   });
 }

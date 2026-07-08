@@ -26,6 +26,16 @@ function CapsLockTag(): ReactElement | null {
 }
 
 /**
+ * Quiet "not saved" note in the bottom bar (§9.5): a failed result submission
+ * surfaces here without blocking the next run. Only the failure state shows.
+ */
+function SaveStatusTag(): ReactElement | null {
+  const saveStatus = useTypingStore((s) => s.saveStatus);
+  if (saveStatus !== 'not-saved') return null;
+  return <span className="subtitle justify-self-start text-smoke">not saved</span>;
+}
+
+/**
  * The signature letterbox (§9.4): thin cinematic bars top and bottom frame
  * every screen. Wordmark in the top bar; keybind hints styled like subtitles
  * in the bottom bar. The stage between the bars carries the film grain and
@@ -51,7 +61,7 @@ export function Letterbox({ children }: { children: ReactNode }): ReactElement {
       </main>
 
       <footer className="grid h-10 shrink-0 grid-cols-3 items-center bg-bar px-6">
-        <span aria-hidden="true" />
+        <SaveStatusTag />
         <p className="subtitle justify-self-center text-smoke">tab next &middot; esc restart</p>
         <CapsLockTag />
       </footer>

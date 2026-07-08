@@ -24,12 +24,8 @@ export function TypingStage(): ReactElement {
   const blurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [unfocused, setUnfocused] = useState(false);
 
-  // Initial passage load (skipped when navigating back to a live run).
-  useEffect(() => {
-    if (useTypingStore.getState().passage === null) {
-      void useTypingStore.getState().loadNext();
-    }
-  }, []);
+  // Passage loading is driven by StagePage (which reads the library filter
+  // from the URL); the stage only owns input, focus, and rendering.
 
   // Regain focus whenever a fresh run becomes typeable.
   useEffect(() => {
