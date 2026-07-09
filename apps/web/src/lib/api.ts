@@ -1,5 +1,6 @@
 import {
   authorListSchema,
+  leaderboardSchema,
   passageSchema,
   postProfilesResponseSchema,
   postResultsResponseSchema,
@@ -7,6 +8,7 @@ import {
   themeListSchema,
   type AuthorListItem,
   type CharEvents,
+  type Leaderboard,
   type Passage,
   type PostResultsResponse,
   type ProfileStats,
@@ -102,4 +104,11 @@ export async function fetchAuthors(): Promise<AuthorListItem[]> {
 export async function fetchThemes(): Promise<ThemeListItem[]> {
   const response = await fetch(`${BASE}/themes`);
   return parseJson(response, themeListSchema, 'GET /themes');
+}
+
+/** GET /leaderboard — each profile's best run, optionally scoped to a passage (§10.3). */
+export async function fetchLeaderboard(passageId?: number): Promise<Leaderboard> {
+  const qs = passageId === undefined ? '' : `?passageId=${String(passageId)}`;
+  const response = await fetch(`${BASE}/leaderboard${qs}`);
+  return parseJson(response, leaderboardSchema, 'GET /leaderboard');
 }

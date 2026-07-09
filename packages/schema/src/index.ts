@@ -39,6 +39,13 @@ export {
 export { postProfilesResponseSchema, type PostProfilesResponse } from './profiles.ts';
 
 export {
+  leaderboardEntrySchema,
+  leaderboardSchema,
+  type LeaderboardEntry,
+  type Leaderboard,
+} from './leaderboard.ts';
+
+export {
   resultSummarySchema,
   bestRunSchema,
   authorAggregateSchema,

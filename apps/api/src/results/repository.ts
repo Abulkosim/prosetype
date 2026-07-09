@@ -44,6 +44,19 @@ export interface AuthorAggregateRow {
   avgWpm: number;
 }
 
+/** One leaderboard row: a single profile's best run (global or per passage). */
+export interface LeaderboardRow {
+  wpm: number;
+  accuracy: number;
+  consistency: number;
+  displayName: string | null;
+  passageId: number;
+  band: Band;
+  workTitle: string;
+  authorName: string;
+  createdAt: Date;
+}
+
 /** All-time aggregates for a profile (spanning every result, not just recent). */
 export interface ProfileAggregates {
   tests: number;
@@ -65,4 +78,9 @@ export interface ResultRepository {
   aggregatesForProfile(profileId: string): Promise<ProfileAggregates>;
   /** The most recent results, newest first, capped at `limit`. */
   recentForProfile(profileId: string, limit: number): Promise<StoredResultRow[]>;
+  /**
+   * Leaderboard: each profile's single best run by wpm, highest first, capped
+   * at `limit`. Scoped to one passage when `passageId` is given, else global.
+   */
+  topResults(opts: { passageId?: number | undefined; limit: number }): Promise<LeaderboardRow[]>;
 }

@@ -1,8 +1,9 @@
 import type { Band } from '@prosetype/schema';
 import { desc, eq, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.ts';
-import { authors, passages, results, works } from '../db/schema.ts';
+import { authors, passages, profiles, results, works } from '../db/schema.ts';
 import type {
+  LeaderboardRow,
   NewResult,
   ProfileAggregates,
   ResultRepository,
@@ -65,6 +66,59 @@ export function createDrizzleResultRepository(db: Db): ResultRepository {
         .orderBy(desc(results.createdAt), desc(results.id))
         .limit(limit);
       return rows.map((r) => ({ ...r, band: r.band as Band }));
+    },
+
+    async topResults(opts: {
+      passageId?: number | undefined;
+      limit: number;
+    }): Promise<LeaderboardRow[]> {
+      // distinct on (profile_id) ordered by wpm gives each profile's best run;
+      // the outer query re-sorts those bests into the ranking and caps it.
+      const scope = opts.passageId !== undefined ? sql`where r.passage_id = ${opts.passageId}` : sql``;
+      const rows = (await db.execute(sql`
+        select best.wpm, best.accuracy, best.consistency,
+               best.display_name as "displayName", best.passage_id as "passageId",
+               best.band, best.work_title as "workTitle", best.author_name as "authorName",
+               best.created_at as "createdAt"
+        from (
+          select distinct on (r.profile_id)
+            r.profile_id, r.wpm, r.accuracy, r.consistency, r.id, r.created_at,
+            p.display_name, r.passage_id, pa.band,
+            w.title as work_title, a.name as author_name
+          from ${results} r
+          join ${passages} pa on pa.id = r.passage_id
+          join ${works} w on w.id = pa.work_id
+          join ${authors} a on a.id = w.author_id
+          join ${profiles} p on p.id = r.profile_id
+          ${scope}
+          order by r.profile_id, r.wpm desc, r.id desc
+        ) best
+        order by best.wpm desc, best.created_at asc
+        limit ${opts.limit}
+      `)) as unknown as Array<{
+        wpm: string;
+        accuracy: string;
+        consistency: string;
+        displayName: string | null;
+        passageId: number;
+        band: string;
+        workTitle: string;
+        authorName: string;
+        createdAt: string | Date;
+      }>;
+      return rows.map((r) => ({
+        wpm: Number(r.wpm),
+        accuracy: Number(r.accuracy),
+        consistency: Number(r.consistency),
+        displayName: r.displayName,
+        passageId: r.passageId,
+        band: r.band as Band,
+        workTitle: r.workTitle,
+        authorName: r.authorName,
+        // db.execute returns timestamptz as a string (unlike the typed select
+        // paths, which yield a Date) — normalize so the route can serialize it.
+        createdAt: new Date(r.createdAt),
+      }));
     },
 
     async aggregatesForProfile(profileId: string): Promise<ProfileAggregates> {

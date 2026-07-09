@@ -39,6 +39,9 @@ function resultRepoWith(
     async recentForProfile() {
       return recent;
     },
+    async topResults() {
+      return [];
+    },
   };
 }
 

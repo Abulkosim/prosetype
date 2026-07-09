@@ -1,6 +1,7 @@
 import { computeStats, MalformedLogError, type RunStats } from '@prosetype/engine';
-import { postResultsRequestSchema } from '@prosetype/schema';
+import { postResultsRequestSchema, type Leaderboard } from '@prosetype/schema';
 import type { FastifyInstance } from 'fastify';
+import { z } from 'zod';
 import type { PassageRepository } from '../passages/repository.ts';
 import type { ProfileRepository } from '../profiles/repository.ts';
 import type { ResultRepository } from '../results/repository.ts';
@@ -39,6 +40,15 @@ export interface ResultRoutesOptions {
   results: ResultRepository;
 }
 
+/** Default and max leaderboard size (plan silent — boring bounds). */
+export const DEFAULT_LEADERBOARD_LIMIT = 20;
+export const MAX_LEADERBOARD_LIMIT = 100;
+
+const leaderboardQuerySchema = z.object({
+  passageId: z.coerce.number().int().positive().optional(),
+  limit: z.coerce.number().int().positive().max(MAX_LEADERBOARD_LIMIT).default(DEFAULT_LEADERBOARD_LIMIT),
+});
+
 /**
  * POST /results (plan §8): validate, recompute stats server-side via the shared
  * engine, compare with the client's numbers, and persist the server-computed
@@ -48,6 +58,32 @@ export interface ResultRoutesOptions {
  */
 export async function resultRoutes(app: FastifyInstance, opts: ResultRoutesOptions): Promise<void> {
   const { profiles, passages, results } = opts;
+
+  // GET /leaderboard?passageId&limit (plan §10.3): each profile's best run.
+  app.get('/leaderboard', async (request, reply) => {
+    const parsed = leaderboardQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      return sendBadRequest(reply, parsed.error);
+    }
+    const { passageId, limit } = parsed.data;
+    const rows = await results.topResults({ passageId, limit });
+    const board: Leaderboard = {
+      passageId: passageId ?? null,
+      entries: rows.map((row, index) => ({
+        rank: index + 1,
+        wpm: row.wpm,
+        accuracy: row.accuracy,
+        consistency: row.consistency,
+        displayName: row.displayName,
+        passageId: row.passageId,
+        band: row.band,
+        workTitle: row.workTitle,
+        authorName: row.authorName,
+        createdAt: row.createdAt.toISOString(),
+      })),
+    };
+    return board;
+  });
 
   app.post(
     '/results',

@@ -38,6 +38,7 @@ describe('buildCommands', () => {
         'daily',
         'go-library',
         'go-stats',
+        'go-leaderboard',
         'band-warmup',
         'band-standard',
         'band-hard',

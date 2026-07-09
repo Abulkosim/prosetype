@@ -80,6 +80,12 @@ export function buildCommands(ctx: CommandContext): Command[] {
       keywords: ['history', 'results', 'progress'],
       run: () => ctx.navigate('/stats'),
     },
+    {
+      id: 'go-leaderboard',
+      title: 'Leaderboard',
+      keywords: ['ranking', 'top', 'best', 'fastest'],
+      run: () => ctx.navigate('/leaderboard'),
+    },
   );
 
   for (const [band, label] of BANDS) {

@@ -134,5 +134,8 @@ export function createStubResultRepo(): ResultRepository & { inserted: NewResult
     async recentForProfile(): Promise<StoredResultRow[]> {
       return [];
     },
+    async topResults() {
+      return [];
+    },
   };
 }

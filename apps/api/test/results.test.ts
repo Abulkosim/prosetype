@@ -1,5 +1,5 @@
 import { computeStats } from '@prosetype/engine';
-import type { PostResultsResponse } from '@prosetype/schema';
+import { leaderboardSchema, type PostResultsResponse } from '@prosetype/schema';
 import type { FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/build.ts';
@@ -150,5 +150,74 @@ describe('POST /api/v1/results', () => {
     });
     expect(res.statusCode).toBe(404);
     expect(res.json()).toMatchObject({ error: 'NotFound' });
+  });
+});
+
+describe('GET /api/v1/leaderboard', () => {
+  let app: FastifyInstance | null = null;
+
+  afterEach(async () => {
+    if (app !== null) {
+      await app.close();
+      app = null;
+    }
+  });
+
+  it('ranks the repository rows and shapes them as the Leaderboard DTO', async () => {
+    const resultRepo = {
+      ...createStubResultRepo(),
+      async topResults() {
+        return [
+          {
+            wpm: 120.5,
+            accuracy: 98,
+            consistency: 90,
+            displayName: 'ada',
+            passageId: 2,
+            band: 'standard' as const,
+            workTitle: 'The Maltese Falcon',
+            authorName: 'Dashiell Hammett',
+            createdAt: new Date('2026-07-01T10:00:00Z'),
+          },
+          {
+            wpm: 88,
+            accuracy: 95,
+            consistency: 85,
+            displayName: null,
+            passageId: 2,
+            band: 'standard' as const,
+            workTitle: 'The Maltese Falcon',
+            authorName: 'Dashiell Hammett',
+            createdAt: new Date('2026-07-02T10:00:00Z'),
+          },
+        ];
+      },
+    };
+    app = await buildApp(loadConfig(testEnv), {
+      passageRepo: createStubPassageRepo([shortPassage, fastPassage]),
+      profileRepo: createStubProfileRepo([PROFILE_ID]),
+      resultRepo,
+    });
+    const res = await app.inject({ method: 'GET', url: '/api/v1/leaderboard' });
+    expect(res.statusCode).toBe(200);
+    const board = leaderboardSchema.parse(res.json());
+    expect(board.passageId).toBeNull();
+    expect(board.entries.map((e) => e.rank)).toEqual([1, 2]);
+    expect(board.entries[0]?.displayName).toBe('ada');
+    expect(board.entries[1]?.displayName).toBeNull();
+    expect(board.entries[0]?.createdAt).toBe('2026-07-01T10:00:00.000Z');
+  });
+
+  it('echoes the passage scope and rejects a bad limit', async () => {
+    app = await buildApp(loadConfig(testEnv), {
+      passageRepo: createStubPassageRepo([shortPassage, fastPassage]),
+      profileRepo: createStubProfileRepo([PROFILE_ID]),
+      resultRepo: createStubResultRepo(),
+    });
+    const scoped = await app.inject({ method: 'GET', url: '/api/v1/leaderboard?passageId=2' });
+    expect(scoped.statusCode).toBe(200);
+    expect(leaderboardSchema.parse(scoped.json()).passageId).toBe(2);
+    const bad = await app.inject({ method: 'GET', url: '/api/v1/leaderboard?limit=0' });
+    expect(bad.statusCode).toBe(400);
   });
 });
