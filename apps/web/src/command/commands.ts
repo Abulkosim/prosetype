@@ -24,6 +24,9 @@ export interface CommandContext {
   /** Active theme, so the toggle command can name its destination. */
   theme: 'noir' | 'matinee';
   toggleTheme: () => void;
+  /** Whether keystroke sound is on, so its command can name the action. */
+  soundEnabled: boolean;
+  toggleSound: () => void;
 }
 
 /** The four difficulty bands (§6.4); picking one starts a filtered test. */
@@ -88,6 +91,14 @@ export function buildCommands(ctx: CommandContext): Command[] {
     hint: 'theme',
     keywords: ['theme', 'appearance', 'light', 'dark', 'matinee', 'noir'],
     run: ctx.toggleTheme,
+  });
+
+  commands.push({
+    id: 'sound',
+    title: ctx.soundEnabled ? 'Mute keystroke sound' : 'Enable keystroke sound',
+    hint: 'sound',
+    keywords: ['sound', 'audio', 'thock', 'typewriter', 'mute', 'click'],
+    run: ctx.toggleSound,
   });
 
   return commands;

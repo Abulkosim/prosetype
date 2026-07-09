@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { useCommandStore } from '../command/commandStore';
 import { Epigraph } from '../components/Epigraph';
 import { ResultView } from '../result/ResultView';
+import { playThock } from '../settings/sound';
 import { Hud } from './Hud';
 import { PassageBoard } from './PassageBoard';
 import { useTypingStore } from './typingStore';
@@ -56,8 +57,13 @@ export function TypingStage(): ReactElement {
       if (e.inputType !== 'insertText' || e.data === null) return;
       const store = useTypingStore.getState();
       for (const char of e.data) {
-        if (char === ' ') store.commitSpace(ts);
-        else store.typeChar(char, ts);
+        if (char === ' ') {
+          store.commitSpace(ts);
+          playThock('space');
+        } else {
+          store.typeChar(char, ts);
+          playThock('key');
+        }
       }
     };
 
@@ -81,6 +87,7 @@ export function TypingStage(): ReactElement {
       if (e.key === 'Backspace') {
         e.preventDefault();
         useTypingStore.getState().backspace(ts, e.ctrlKey || e.altKey);
+        playThock('back');
       }
     };
     const onKeyUp = (e: KeyboardEvent): void => {

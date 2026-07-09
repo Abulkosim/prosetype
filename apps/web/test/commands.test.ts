@@ -10,6 +10,8 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
     next: vi.fn(),
     theme: 'noir',
     toggleTheme: vi.fn(),
+    soundEnabled: false,
+    toggleSound: vi.fn(),
     ...overrides,
   };
 }
@@ -51,6 +53,15 @@ describe('buildCommands', () => {
     expect(ctx.toggleTheme).toHaveBeenCalledOnce();
     const matinee = buildCommands(makeContext({ theme: 'matinee' })).find((c) => c.id === 'theme');
     expect(matinee?.title).toBe('Switch to noir (dark)');
+  });
+
+  it('names the sound command after the action it performs', () => {
+    expect(buildCommands(makeContext({ soundEnabled: false })).find((c) => c.id === 'sound')?.title).toBe(
+      'Enable keystroke sound',
+    );
+    expect(buildCommands(makeContext({ soundEnabled: true })).find((c) => c.id === 'sound')?.title).toBe(
+      'Mute keystroke sound',
+    );
   });
 
   it('wires run() to the context callbacks', () => {
