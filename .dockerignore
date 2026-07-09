@@ -1,0 +1,8 @@
+# Keep build contexts small and reproducible (Phase 3 deployment, plan §12).
+**/node_modules
+**/dist
+.git
+**/.env
+deploy/.env
+**/*.log
+curation-report.txt

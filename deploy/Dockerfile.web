@@ -1,0 +1,11 @@
+# Static web image (Phase 3 deployment hardening, plan §12): build the Vite app,
+# then serve the dist behind Caddy, which also reverse-proxies /api to the API.
+FROM node:24-alpine AS build
+WORKDIR /app
+RUN npm install -g pnpm@11.7.0
+COPY . .
+RUN pnpm install --frozen-lockfile && pnpm --filter web build
+
+FROM caddy:2-alpine
+COPY deploy/Caddyfile /etc/caddy/Caddyfile
+COPY --from=build /app/apps/web/dist /srv
