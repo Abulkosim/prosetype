@@ -1,6 +1,7 @@
 import type { ReactElement, ReactNode } from 'react';
 import { NavLink } from 'react-router';
 
+import { CommandPalette } from '../command/CommandPalette';
 import { useTypingStore } from '../stage/typingStore';
 
 function BarLink({ to, label }: { to: string; label: string }): ReactElement {
@@ -62,9 +63,11 @@ export function Letterbox({ children }: { children: ReactNode }): ReactElement {
 
       <footer className="grid h-10 shrink-0 grid-cols-3 items-center bg-bar px-6">
         <SaveStatusTag />
-        <p className="subtitle justify-self-center text-smoke">tab next &middot; esc restart</p>
+        <p className="subtitle justify-self-center text-smoke">tab next &middot; esc commands</p>
         <CapsLockTag />
       </footer>
+
+      <CommandPalette />
     </div>
   );
 }

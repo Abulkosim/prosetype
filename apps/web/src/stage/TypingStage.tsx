@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 
+import { useCommandStore } from '../command/commandStore';
 import { Epigraph } from '../components/Epigraph';
 import { ResultView } from '../result/ResultView';
 import { Hud } from './Hud';
@@ -18,6 +19,7 @@ export function TypingStage(): ReactElement {
   const passage = useTypingStore((s) => s.passage);
   const snapshot = useTypingStore((s) => s.snapshot);
   const completedRun = useTypingStore((s) => s.completedRun);
+  const paletteOpen = useCommandStore((s) => s.isOpen);
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const composingRef = useRef(false);
@@ -27,10 +29,11 @@ export function TypingStage(): ReactElement {
   // Passage loading is driven by StagePage (which reads the library filter
   // from the URL); the stage only owns input, focus, and rendering.
 
-  // Regain focus whenever a fresh run becomes typeable.
+  // Regain focus whenever a fresh run becomes typeable — but not while the
+  // command palette owns focus; refocus the textarea when it closes.
   useEffect(() => {
-    if (phase === 'typing') textareaRef.current?.focus();
-  }, [phase]);
+    if (phase === 'typing' && !paletteOpen) textareaRef.current?.focus();
+  }, [phase, paletteOpen]);
 
   // Native listeners on the hidden textarea: beforeinput gives inputType +
   // data with a cancelable event (React's synthetic onBeforeInput does not).
@@ -106,19 +109,17 @@ export function TypingStage(): ReactElement {
   }, []);
 
   // Document-level keys while the stage is up: Tab = next passage (also from
-  // the result and error views, and never moves focus), Esc = restart, and
-  // printable keys never reach browser chrome (Firefox quick-find on ' " /) —
-  // if focus escaped the textarea, swallow the key and refocus.
+  // the result and error views, and never moves focus), and printable keys
+  // never reach browser chrome (Firefox quick-find on ' " /) — if focus
+  // escaped the textarea, swallow the key and refocus. Esc is owned by the
+  // command palette (its capture handler toggles it); while the palette is
+  // open we bail entirely so keystrokes reach its search box, not here.
   useEffect(() => {
     const onDocKeyDown = (e: KeyboardEvent): void => {
+      if (useCommandStore.getState().isOpen) return;
       if (e.key === 'Tab') {
         e.preventDefault();
         void useTypingStore.getState().loadNext();
-        return;
-      }
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        useTypingStore.getState().restart();
         return;
       }
       if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
