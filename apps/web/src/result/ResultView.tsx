@@ -1,8 +1,9 @@
 import { computeHeatmap, computePerSecondRawWpm, type RunStats } from '@prosetype/engine';
 import type { CharEvents, Passage } from '@prosetype/schema';
-import { useMemo, type ReactElement } from 'react';
+import { useState, useMemo, type ReactElement } from 'react';
 
 import { Epigraph } from '../components/Epigraph';
+import { shareResultCard } from '../lib/shareCard';
 import { HeatmapPassage } from './HeatmapPassage';
 import { WpmSparkline } from './WpmSparkline';
 
@@ -55,13 +56,36 @@ function formatTax(pct: number | null): string {
  * `onNext` (a second listener would double-fire). The visible hint below is a
  * real button wired to the same `onNext` for mouse users.
  */
+/** Transient state for the share control (a shareable result card, §10.3). */
+type ShareState = 'idle' | 'working' | 'copied' | 'downloaded' | 'error';
+
+const SHARE_LABEL: Record<ShareState, string> = {
+  idle: 'share result',
+  working: 'rendering…',
+  copied: 'image copied',
+  downloaded: 'image saved',
+  error: "couldn't share",
+};
+
 export function ResultView({ run, passage, onNext }: ResultViewProps): ReactElement {
   const { stats } = run;
+  const [share, setShare] = useState<ShareState>('idle');
   const heatmap = useMemo(() => computeHeatmap(passage.text, run.log), [passage.text, run.log]);
   const buckets = useMemo(
     () => computePerSecondRawWpm(passage.text, run.log),
     [passage.text, run.log],
   );
+
+  const onShare = (): void => {
+    if (share === 'working') return;
+    setShare('working');
+    shareResultCard(run, passage)
+      .then((outcome) => setShare(outcome))
+      .catch(() => setShare('error'))
+      .finally(() => {
+        setTimeout(() => setShare('idle'), 2400);
+      });
+  };
 
   return (
     <section aria-label="Result" className="animate-fade-in">
@@ -113,13 +137,23 @@ export function ResultView({ run, passage, onNext }: ResultViewProps): ReactElem
         </div>
       </div>
 
-      <button
-        type="button"
-        onClick={onNext}
-        className="subtitle mt-14 text-smoke transition-opacity duration-150 hover:text-bone"
-      >
-        tab &middot; next passage
-      </button>
+      <div className="mt-14 flex flex-wrap items-center gap-x-10 gap-y-4">
+        <button
+          type="button"
+          onClick={onNext}
+          className="subtitle text-smoke transition-opacity duration-150 hover:text-bone"
+        >
+          tab &middot; next passage
+        </button>
+        <button
+          type="button"
+          onClick={onShare}
+          disabled={share === 'working'}
+          className="subtitle text-smoke transition-opacity duration-150 hover:text-bone"
+        >
+          {SHARE_LABEL[share]}
+        </button>
+      </div>
     </section>
   );
 }
