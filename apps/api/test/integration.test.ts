@@ -102,13 +102,18 @@ suite('API integration (real Postgres)', () => {
     await sql.end({ timeout: 5 });
   });
 
-  async function submit(passageId: number, text: string, durationMs = 6000): Promise<PostResultsResponse> {
+  async function submit(
+    passageId: number,
+    text: string,
+    durationMs = 6000,
+    forProfileId = profileId,
+  ): Promise<PostResultsResponse> {
     const charEvents = typeRun(text, durationMs);
     const clientStats = computeStats(text, charEvents);
     const res = await app.inject({
       method: 'POST',
       url: '/api/v1/results',
-      payload: { mode: 'prose', profileId, passageId, clientStats, charEvents },
+      payload: { mode: 'prose', profileId: forProfileId, passageId, clientStats, charEvents },
     });
     expect(res.statusCode).toBe(201);
     return res.json<PostResultsResponse>();
@@ -201,24 +206,36 @@ suite('API integration (real Postgres)', () => {
   });
 
   it('completing the daily passage starts a streak; a same-day resubmit does not extend it', async () => {
-    const dailyRes = await app.inject({ method: 'GET', url: '/api/v1/passages/daily' });
-    expect(dailyRes.statusCode).toBe(200);
-    const daily = dailyRes.json<Passage>();
-    // The real corpus's daily pick can be much longer than the other fixtures
-    // in this file, so scale the duration to stay under the 350wpm ceiling
-    // (plan §8) regardless of which passage today's pick is.
-    const durationMs = Math.max(6000, daily.wordCount * 600);
+    // Dedicated profile: earlier tests submit the seeded fixtures on the shared
+    // profile, and findDaily can pick those fixtures on some UTC dates — which
+    // would pre-complete today's daily and make the first submit look like a
+    // same-day resubmit (extended: false).
+    const streakProfileId = (
+      await app.inject({ method: 'POST', url: '/api/v1/profiles' })
+    ).json<PostProfilesResponse>().id;
+    try {
+      const dailyRes = await app.inject({ method: 'GET', url: '/api/v1/passages/daily' });
+      expect(dailyRes.statusCode).toBe(200);
+      const daily = dailyRes.json<Passage>();
+      // The real corpus's daily pick can be much longer than the other fixtures
+      // in this file, so scale the duration to stay under the 350wpm ceiling
+      // (plan §8) regardless of which passage today's pick is.
+      const durationMs = Math.max(6000, daily.wordCount * 600);
 
-    const first = await submit(daily.id, daily.text, durationMs);
-    expect(first.dailyStreak).toEqual({ current: 1, best: 1, extended: true });
+      const first = await submit(daily.id, daily.text, durationMs, streakProfileId);
+      expect(first.dailyStreak).toEqual({ current: 1, best: 1, extended: true });
 
-    const second = await submit(daily.id, daily.text, durationMs);
-    expect(second.dailyStreak).toEqual({ current: 1, best: 1, extended: false });
+      const second = await submit(daily.id, daily.text, durationMs, streakProfileId);
+      expect(second.dailyStreak).toEqual({ current: 1, best: 1, extended: false });
 
-    const stats = (
-      await app.inject({ method: 'GET', url: `/api/v1/profiles/${profileId}/stats` })
-    ).json<ProfileStats>();
-    expect(stats.dailyStreak).toEqual({ current: 1, best: 1, completedToday: true });
+      const stats = (
+        await app.inject({ method: 'GET', url: `/api/v1/profiles/${streakProfileId}/stats` })
+      ).json<ProfileStats>();
+      expect(stats.dailyStreak).toEqual({ current: 1, best: 1, completedToday: true });
+    } finally {
+      await sql`delete from results where profile_id = ${streakProfileId}`;
+      await sql`delete from profiles where id = ${streakProfileId}`;
+    }
   });
 
   it('a claim merges the requester\'s daily streak into the canonical profile (Batch C §2.1)', async () => {
