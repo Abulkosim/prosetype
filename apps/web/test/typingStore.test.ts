@@ -1,6 +1,7 @@
-import type { Passage } from '@prosetype/schema';
+import type { Passage, ProfileStats } from '@prosetype/schema';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { PROFILE_STORAGE_KEY } from '../src/lib/profile';
 import { useModeStore } from '../src/settings/mode';
 import { COMPLETION_HOLD_MS, resetTypingStore, useTypingStore } from '../src/stage/typingStore';
 
@@ -19,10 +20,38 @@ function makePassage(id: number, text: string): Passage {
   };
 }
 
+/** A minimal but schema-valid ProfileStats fixture (Batch C §2.2 drill tests). */
+function makeStats(overrides: Partial<ProfileStats> = {}): ProfileStats {
+  return {
+    totals: { tests: 5, timeTypedMs: 100000 },
+    bestWpm: null,
+    avgWpmLast10: null,
+    avgAccuracy: null,
+    avgConsistency: null,
+    punctuationTaxAvgPct: null,
+    perAuthor: [],
+    history: [],
+    keyStats: [{ key: 'e', occurrences: 10, errors: 5, errorRate: 50, avgLatencyMs: 200 }],
+    bigramStats: [],
+    dailyStreak: { current: 0, best: 0, completedToday: false },
+    ...overrides,
+  };
+}
+
+/** Pre-seed `prosetype.profileId` so `ensureProfileId` resolves without a POST /profiles call. */
+function installProfileStorage(profileId: string): void {
+  const store = new Map<string, string>([[PROFILE_STORAGE_KEY, profileId]]);
+  globalThis.localStorage = {
+    getItem: (k: string) => store.get(k) ?? null,
+    setItem: (k: string, v: string) => void store.set(k, v),
+    removeItem: (k: string) => void store.delete(k),
+  } as unknown as Storage;
+}
+
 let fetchedUrls: string[] = [];
 
-/** Stub global fetch: each call serves the next passage (or rejects on Error). */
-function installFetch(responses: (Passage | Error)[]): void {
+/** Stub global fetch: each call serves the next queued JSON body (or rejects on Error). */
+function installFetch(responses: (Passage | ProfileStats | Error)[]): void {
   let call = 0;
   vi.stubGlobal('fetch', (input: RequestInfo | URL): Promise<Response> => {
     fetchedUrls.push(String(input));
@@ -136,6 +165,41 @@ describe('typingStore.loadById', () => {
     const s = useTypingStore.getState();
     expect(s.phase).toBe('error');
     expect(s.errorMessage).not.toBeNull();
+  });
+});
+
+describe('typingStore.loadDrill', () => {
+  afterEach(() => {
+    // @ts-expect-error - tearing down the test-only global.
+    delete globalThis.localStorage;
+  });
+
+  it('loads a weak-key drill word run and switches to words mode', async () => {
+    installProfileStorage('profile-1');
+    installFetch([makeStats()]);
+    useModeStore.getState().setMode('prose');
+    useModeStore.getState().setWordCount(25);
+    await useTypingStore.getState().loadDrill();
+    const s = useTypingStore.getState();
+    expect(s.phase).toBe('typing');
+    expect(s.test).toMatchObject({ kind: 'words', drill: true, count: 25 });
+    expect(useModeStore.getState().mode).toBe('words');
+    expect(fetchedUrls[0]).toBe('/api/v1/profiles/profile-1/stats');
+    const test = s.test;
+    if (test?.kind === 'words') {
+      expect(test.text.split(' ')).toHaveLength(25);
+      expect(test.text).not.toMatch(/\s{2,}|^\s|\s$/); // canonical
+    }
+  });
+
+  it('still yields a plain word run when the stats fetch fails', async () => {
+    installProfileStorage('profile-2');
+    installFetch([new Error('network down')]);
+    useModeStore.getState().setWordCount(50);
+    await useTypingStore.getState().loadDrill();
+    const s = useTypingStore.getState();
+    expect(s.phase).toBe('typing'); // falls through to an empty-target word run, not an error
+    expect(s.test).toMatchObject({ kind: 'words', drill: true, count: 50 });
   });
 });
 

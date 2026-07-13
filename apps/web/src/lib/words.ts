@@ -74,24 +74,52 @@ export const COMMON_WORDS: readonly string[] = [
   'rain', 'wind', 'snow', 'earth', 'mountain', 'valley', 'forest', 'ocean', 'island', 'beach',
 ] as const;
 
+/** A source of randomness in [0, 1), injectable so callers can seed sampling deterministically in tests. */
+export type Rng = () => number;
+
 /**
- * Sample `count` words with replacement into a canonical single-spaced string.
- * The output is guaranteed canonical (§6.2) because every word is lowercase and
- * space-free, so `createEngine(generateWordText(n))` is always valid.
- *
- * @throws if `count` is not a positive integer.
+ * Options for `generateWordText`'s per-word transforms. Empty for now - Batch
+ * C §2.3 (word-mode punctuation/numbers toggles) adds fields here; the drill
+ * mode (§2.2) samples via `generateDrillText` in `lib/drill.ts` instead, which
+ * intentionally never passes these through (digits/punctuation would dilute
+ * the letter-training signal).
  */
-export function generateWordText(count: number): string {
-  if (!Number.isInteger(count) || count <= 0) {
-    throw new Error(`word count must be a positive integer, got ${String(count)}`);
-  }
-  const n = COMMON_WORDS.length;
+export type WordTextOptions = Record<string, never>;
+
+/**
+ * Sample `count` words with replacement from `pool` using `rng` for the index
+ * draw. Pulled out of `generateWordText` so the weak-key drill (§2.2) can
+ * reuse the same uniform-sampling logic over a filtered word pool.
+ */
+export function sampleWords(pool: readonly string[], count: number, rng: Rng): string[] {
+  const n = pool.length;
   const out: string[] = [];
   for (let i = 0; i < count; i += 1) {
-    const word = COMMON_WORDS[Math.floor(Math.random() * n)];
+    const word = pool[Math.floor(rng() * n)];
     // The index is always in range (0 <= idx < n, n > 0), so word is defined;
     // the guard just satisfies noUncheckedIndexedAccess.
     if (word !== undefined) out.push(word);
   }
-  return out.join(' ');
+  return out;
+}
+
+/**
+ * Sample `count` words with replacement into a canonical single-spaced string.
+ * The output is guaranteed canonical (§6.2) because every word is lowercase and
+ * space-free, so `createEngine(generateWordText(n))` is always valid. `rng`
+ * defaults to `Math.random` so every existing bare `generateWordText(n)` call
+ * site is unaffected; tests can seed it for determinism.
+ *
+ * @throws if `count` is not a positive integer.
+ */
+export function generateWordText(
+  count: number,
+  options: WordTextOptions = {},
+  rng: Rng = Math.random,
+): string {
+  void options; // reserved for §2.3's punctuation/numbers toggles; unused until then
+  if (!Number.isInteger(count) || count <= 0) {
+    throw new Error(`word count must be a positive integer, got ${String(count)}`);
+  }
+  return sampleWords(COMMON_WORDS, count, rng).join(' ');
 }

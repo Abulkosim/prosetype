@@ -6,7 +6,7 @@ import { Link } from 'react-router';
 import { Epigraph } from '../components/Epigraph';
 import { shareResultCard } from '../lib/shareCard';
 import { hasSeenResultHint, markSeenResultHint } from '../settings/onboarding';
-import { useTypingStore, type ActiveTest, type BestInfo } from '../stage/typingStore';
+import { useTypingStore, wordTestLabel, type ActiveTest, type BestInfo } from '../stage/typingStore';
 import { HeatmapPassage } from './HeatmapPassage';
 import { WpmSparkline } from './WpmSparkline';
 
@@ -195,7 +195,7 @@ export function ResultView({ run, test, onNext }: ResultViewProps): ReactElement
           {test.kind === 'passage' ? (
             <Epigraph passage={test.passage} />
           ) : (
-            <p className="subtitle text-smoke">words &middot; {test.count}</p>
+            <p className="subtitle text-smoke">{wordTestLabel(test)}</p>
           )}
         </div>
       </div>

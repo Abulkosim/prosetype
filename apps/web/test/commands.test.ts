@@ -38,11 +38,12 @@ describe('buildCommands', () => {
     expect(ids).not.toContain('next');
   });
 
-  it('always offers daily, library, stats, and the four difficulty bands', () => {
+  it('always offers daily, drill, library, stats, and the four difficulty bands', () => {
     const ids = buildCommands(makeContext({ onStage: false })).map((c) => c.id);
     expect(ids).toEqual(
       expect.arrayContaining([
         'daily',
+        'drill',
         'go-library',
         'go-stats',
         'go-leaderboard',
@@ -59,6 +60,12 @@ describe('buildCommands', () => {
     const ctx = makeContext();
     buildCommands(ctx).find((c) => c.id === 'daily')?.run();
     expect(ctx.navigate).toHaveBeenCalledWith('/?daily');
+  });
+
+  it('routes the drill command to /?drill', () => {
+    const ctx = makeContext();
+    buildCommands(ctx).find((c) => c.id === 'drill')?.run();
+    expect(ctx.navigate).toHaveBeenCalledWith('/?drill');
   });
 
   it('names the theme command after its destination and wires the toggle', () => {

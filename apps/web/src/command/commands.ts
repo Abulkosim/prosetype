@@ -114,6 +114,13 @@ export function buildCommands(ctx: CommandContext): Command[] {
       run: () => ctx.navigate('/?daily'),
     },
     {
+      id: 'drill',
+      title: 'Drill weak keys',
+      hint: 'drill',
+      keywords: ['drill', 'weak', 'practice', 'train'],
+      run: () => ctx.navigate('/?drill'),
+    },
+    {
       id: 'go-library',
       title: 'Browse library',
       keywords: ['authors', 'themes', 'books'],

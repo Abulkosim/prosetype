@@ -1,5 +1,6 @@
 import type { BigramStat, KeyStat, ProfileStats, ResultMode } from '@prosetype/schema';
 import { useEffect, useState, type ReactElement } from 'react';
+import { Link } from 'react-router';
 
 import { fetchProfileStats } from '../lib/api';
 import { ProgressChart } from '../result/ProgressChart';
@@ -228,6 +229,12 @@ export function StatsPage(): ReactElement {
             <ProblemTable caption="keys" unit="key" rows={stats.keyStats} />
             <ProblemTable caption="bigrams" unit="pair" rows={stats.bigramStats} />
           </div>
+          <Link
+            to="/?drill"
+            className="subtitle mt-6 inline-block text-smoke transition-opacity duration-150 hover:text-bone"
+          >
+            drill weak keys &rarr;
+          </Link>
         </div>
       ) : null}
 
