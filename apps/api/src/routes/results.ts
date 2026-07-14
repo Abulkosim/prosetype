@@ -4,7 +4,11 @@ import {
   MalformedLogError,
   type RunStats,
 } from '@prosetype/engine';
-import { postResultsRequestSchema, type DailyStreakInfo, type Leaderboard } from '@prosetype/schema';
+import {
+  postResultsRequestSchema,
+  type DailyStreakInfo,
+  type Leaderboard,
+} from '@prosetype/schema';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { utcDateKey } from '../passages/daily.ts';
@@ -52,7 +56,14 @@ export const MAX_LEADERBOARD_LIMIT = 100;
 
 const leaderboardQuerySchema = z.object({
   passageId: z.coerce.number().int().positive().optional(),
-  limit: z.coerce.number().int().positive().max(MAX_LEADERBOARD_LIMIT).default(DEFAULT_LEADERBOARD_LIMIT),
+  limit: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(MAX_LEADERBOARD_LIMIT)
+    .default(DEFAULT_LEADERBOARD_LIMIT),
+  /** The requesting client's own profile id, so its row can be marked isSelf (§3.1). */
+  self: z.uuid().optional(),
 });
 
 /**
@@ -71,7 +82,7 @@ export async function resultRoutes(app: FastifyInstance, opts: ResultRoutesOptio
     if (!parsed.success) {
       return sendBadRequest(reply, parsed.error);
     }
-    const { passageId, limit } = parsed.data;
+    const { passageId, limit, self } = parsed.data;
     const rows = await results.topResults({ passageId, limit });
     const board: Leaderboard = {
       passageId: passageId ?? null,
@@ -81,7 +92,7 @@ export async function resultRoutes(app: FastifyInstance, opts: ResultRoutesOptio
         accuracy: row.accuracy,
         consistency: row.consistency,
         displayName: row.displayName,
-        profileId: row.profileId,
+        isSelf: self !== undefined && row.profileId === self,
         passageId: row.passageId,
         band: row.band,
         workTitle: row.workTitle,
@@ -194,7 +205,10 @@ export async function resultRoutes(app: FastifyInstance, opts: ResultRoutesOptio
         const todayKey = utcDateKey(new Date());
         const daily = await passages.findDaily(todayKey);
         if (daily !== null && daily.id === passageId) {
-          const { state, extended } = await profiles.recordDailyCompletion(body.profileId, todayKey);
+          const { state, extended } = await profiles.recordDailyCompletion(
+            body.profileId,
+            todayKey,
+          );
           dailyStreak = { current: state.current, best: state.best, extended };
         }
       }
@@ -206,7 +220,8 @@ export async function resultRoutes(app: FastifyInstance, opts: ResultRoutesOptio
         isNewBest: previousBestWpm === null || serverStats.wpm > previousBestWpm,
         previousBestWpm,
         isNewPassageBest:
-          passageId !== null && (previousPassageBestWpm === null || serverStats.wpm > previousPassageBestWpm),
+          passageId !== null &&
+          (previousPassageBestWpm === null || serverStats.wpm > previousPassageBestWpm),
         previousPassageBestWpm,
         dailyStreak,
       });

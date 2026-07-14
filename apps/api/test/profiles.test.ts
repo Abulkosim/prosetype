@@ -29,6 +29,17 @@ function fixedProfileRepo(ids: string[]): ProfileRepository {
     async verifyClaim() {
       return { status: 'invalid' as const };
     },
+    async get(id: string) {
+      return ids.includes(id)
+        ? { id, displayName: null, email: null, emailVerifiedAt: null }
+        : null;
+    },
+    async setDisplayName(id: string) {
+      return ids.includes(id);
+    },
+    async deleteProfile(id: string) {
+      return ids.includes(id);
+    },
     async getDailyStreak() {
       return { current: 0, best: 0, lastDate: null };
     },
@@ -82,7 +93,14 @@ describe('profile routes', () => {
     app = await build(
       fixedProfileRepo([]),
       resultRepoWith(
-        { tests: 0, timeTypedMs: 0, avgAccuracy: null, avgConsistency: null, best: null, perAuthor: [] },
+        {
+          tests: 0,
+          timeTypedMs: 0,
+          avgAccuracy: null,
+          avgConsistency: null,
+          best: null,
+          perAuthor: [],
+        },
         [],
       ),
     );
@@ -95,7 +113,14 @@ describe('profile routes', () => {
     app = await build(
       fixedProfileRepo([PROFILE_ID]),
       resultRepoWith(
-        { tests: 0, timeTypedMs: 0, avgAccuracy: null, avgConsistency: null, best: null, perAuthor: [] },
+        {
+          tests: 0,
+          timeTypedMs: 0,
+          avgAccuracy: null,
+          avgConsistency: null,
+          best: null,
+          perAuthor: [],
+        },
         [],
       ),
     );
@@ -180,7 +205,14 @@ describe('profile routes', () => {
     app = await build(
       fixedProfileRepo([]),
       resultRepoWith(
-        { tests: 0, timeTypedMs: 0, avgAccuracy: null, avgConsistency: null, best: null, perAuthor: [] },
+        {
+          tests: 0,
+          timeTypedMs: 0,
+          avgAccuracy: null,
+          avgConsistency: null,
+          best: null,
+          perAuthor: [],
+        },
         [],
       ),
     );
@@ -193,7 +225,14 @@ describe('profile routes', () => {
     app = await build(
       fixedProfileRepo([]),
       resultRepoWith(
-        { tests: 0, timeTypedMs: 0, avgAccuracy: null, avgConsistency: null, best: null, perAuthor: [] },
+        {
+          tests: 0,
+          timeTypedMs: 0,
+          avgAccuracy: null,
+          avgConsistency: null,
+          best: null,
+          perAuthor: [],
+        },
         [],
       ),
     );
@@ -298,5 +337,149 @@ describe('account claim (§10.3)', () => {
       payload: { token: 'nope' },
     });
     expect(res.statusCode).toBe(400);
+  });
+});
+
+describe('account management (§3.1)', () => {
+  const ACCOUNT_ID = '66666666-6666-4666-8666-666666666666';
+  const UNKNOWN_ID = '77777777-7777-4777-8777-777777777777';
+  let app: FastifyInstance | null = null;
+
+  afterEach(async () => {
+    if (app !== null) {
+      await app.close();
+      app = null;
+    }
+  });
+
+  async function setup() {
+    const resultRepo = createStubResultRepo();
+    const profileRepo = createStubProfileRepo([ACCOUNT_ID], resultRepo);
+    app = await buildApp(loadConfig(testEnv), {
+      passageRepo: createStubPassageRepo([shortPassage]),
+      profileRepo,
+      resultRepo,
+    });
+    return { app, profileRepo, resultRepo };
+  }
+
+  it('GET /profiles/:id returns unclaimed info for a fresh profile', async () => {
+    const { app } = await setup();
+    const res = await app.inject({ method: 'GET', url: `/api/v1/profiles/${ACCOUNT_ID}` });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ id: ACCOUNT_ID, displayName: null, claimed: false, email: null });
+  });
+
+  it('GET /profiles/:id returns claimed info after a claim', async () => {
+    const { app, profileRepo } = await setup();
+    await profileRepo.createClaimToken({
+      token: 'tok-1',
+      profileId: ACCOUNT_ID,
+      email: 'ada@example.com',
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    await profileRepo.verifyClaim('tok-1', new Date());
+    const res = await app.inject({ method: 'GET', url: `/api/v1/profiles/${ACCOUNT_ID}` });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({
+      id: ACCOUNT_ID,
+      displayName: 'ada',
+      claimed: true,
+      email: 'ada@example.com',
+    });
+  });
+
+  it('GET /profiles/:id 404s for an unknown profile', async () => {
+    const { app } = await setup();
+    const res = await app.inject({ method: 'GET', url: `/api/v1/profiles/${UNKNOWN_ID}` });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('PATCH /profiles/:id renames the display name', async () => {
+    const { app } = await setup();
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/profiles/${ACCOUNT_ID}`,
+      payload: { displayName: 'newname' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({
+      id: ACCOUNT_ID,
+      displayName: 'newname',
+      claimed: false,
+      email: null,
+    });
+  });
+
+  it('PATCH /profiles/:id trims surrounding whitespace', async () => {
+    const { app } = await setup();
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/profiles/${ACCOUNT_ID}`,
+      payload: { displayName: '  spacey  ' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json<{ displayName: string }>().displayName).toBe('spacey');
+  });
+
+  it('PATCH /profiles/:id rejects an empty (whitespace-only) name with 400', async () => {
+    const { app } = await setup();
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/profiles/${ACCOUNT_ID}`,
+      payload: { displayName: '   ' },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('PATCH /profiles/:id rejects a name over 32 chars with 400', async () => {
+    const { app } = await setup();
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/profiles/${ACCOUNT_ID}`,
+      payload: { displayName: 'x'.repeat(33) },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('PATCH /profiles/:id 404s for an unknown profile', async () => {
+    const { app } = await setup();
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/profiles/${UNKNOWN_ID}`,
+      payload: { displayName: 'name' },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('DELETE /profiles/:id removes the profile and its results', async () => {
+    const { app, resultRepo } = await setup();
+    await resultRepo.insert({
+      profileId: ACCOUNT_ID,
+      mode: 'prose',
+      passageId: shortPassage.id,
+      wordText: null,
+      wpm: 50,
+      rawWpm: 52,
+      accuracy: 96,
+      consistency: 90,
+      durationMs: 5000,
+      charEvents: typeRun(shortPassage.text, 5000),
+      clientMatch: true,
+    });
+    expect(resultRepo.inserted).toHaveLength(1);
+
+    const del = await app.inject({ method: 'DELETE', url: `/api/v1/profiles/${ACCOUNT_ID}` });
+    expect(del.statusCode).toBe(204);
+    expect(resultRepo.inserted).toHaveLength(0);
+
+    const getAfter = await app.inject({ method: 'GET', url: `/api/v1/profiles/${ACCOUNT_ID}` });
+    expect(getAfter.statusCode).toBe(404);
+  });
+
+  it('DELETE /profiles/:id 404s for an unknown profile', async () => {
+    const { app } = await setup();
+    const res = await app.inject({ method: 'DELETE', url: `/api/v1/profiles/${UNKNOWN_ID}` });
+    expect(res.statusCode).toBe(404);
   });
 });

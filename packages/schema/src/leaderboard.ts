@@ -12,8 +12,15 @@ export const leaderboardEntrySchema = z.object({
   accuracy: z.number().min(0).max(100),
   consistency: z.number().min(0).max(100),
   displayName: z.string().nullable(),
-  /** The profile this run belongs to - lets a client highlight its own row. */
-  profileId: z.uuid(),
+  /**
+   * Whether this row is the requesting client's own profile. The raw
+   * `profileId` must never appear here (Batch D, §3.1): it is the app's
+   * bearer credential (rename/delete endpoints are keyed on the bare id), so
+   * leaking it on a public leaderboard would hand out another user's
+   * credential. The client identifies its own row by passing its id via
+   * `?self=` and the server does the comparison instead.
+   */
+  isSelf: z.boolean(),
   passageId: z.int().positive(),
   band: bandSchema,
   workTitle: z.string(),

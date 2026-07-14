@@ -103,7 +103,13 @@ describe('POST /api/v1/results', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/v1/results',
-      payload: { mode: 'prose', profileId: PROFILE_ID, passageId: shortPassage.id, clientStats, charEvents },
+      payload: {
+        mode: 'prose',
+        profileId: PROFILE_ID,
+        passageId: shortPassage.id,
+        clientStats,
+        charEvents,
+      },
     });
     expect(res.statusCode).toBe(400);
     expect(res.json()).toMatchObject({ error: 'BadRequest' });
@@ -119,7 +125,13 @@ describe('POST /api/v1/results', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/v1/results',
-      payload: { mode: 'prose', profileId: PROFILE_ID, passageId: fastPassage.id, clientStats, charEvents },
+      payload: {
+        mode: 'prose',
+        profileId: PROFILE_ID,
+        passageId: fastPassage.id,
+        clientStats,
+        charEvents,
+      },
     });
     expect(res.statusCode).toBe(400);
   });
@@ -132,7 +144,13 @@ describe('POST /api/v1/results', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/v1/results',
-      payload: { mode: 'prose', profileId: PROFILE_ID, passageId: shortPassage.id, clientStats, charEvents },
+      payload: {
+        mode: 'prose',
+        profileId: PROFILE_ID,
+        passageId: shortPassage.id,
+        clientStats,
+        charEvents,
+      },
     });
     expect(res.statusCode).toBe(400);
     expect(res.json()).toMatchObject({ error: 'BadRequest' });
@@ -192,7 +210,13 @@ describe('POST /api/v1/results', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/v1/results',
-      payload: { mode: 'words', profileId: PROFILE_ID, text, clientStats: computeStats(shortPassage.text, typeRun(shortPassage.text, 5000)), charEvents: typeRun(shortPassage.text, 5000) },
+      payload: {
+        mode: 'words',
+        profileId: PROFILE_ID,
+        text,
+        clientStats: computeStats(shortPassage.text, typeRun(shortPassage.text, 5000)),
+        charEvents: typeRun(shortPassage.text, 5000),
+      },
     });
     expect(res.statusCode).toBe(400);
     expect(resultRepo.inserted).toHaveLength(0);
@@ -203,7 +227,12 @@ describe('POST /api/v1/results', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/v1/results',
-      payload: { mode: 'words', profileId: PROFILE_ID, clientStats: wordBody().clientStats, charEvents: wordBody().charEvents },
+      payload: {
+        mode: 'words',
+        profileId: PROFILE_ID,
+        clientStats: wordBody().clientStats,
+        charEvents: wordBody().charEvents,
+      },
     });
     expect(res.statusCode).toBe(400);
   });
@@ -218,7 +247,7 @@ describe('POST /api/v1/results', () => {
     expect(parsed.previousPassageBestWpm).toBeNull();
   });
 
-  it('compares a later run against the profile\'s prior best', async () => {
+  it("compares a later run against the profile's prior best", async () => {
     const { app } = await setup();
     const first = await app.inject({ method: 'POST', url: '/api/v1/results', payload: body() });
     const firstWpm = first.json<PostResultsResponse>().serverStats.wpm;
@@ -286,9 +315,13 @@ describe('POST /api/v1/results - daily streak (Batch C §2.1)', () => {
     };
   }
 
-  it('a submission matching today\'s daily starts the streak at 1', async () => {
+  it("a submission matching today's daily starts the streak at 1", async () => {
     const { app } = await setup();
-    const res = await app.inject({ method: 'POST', url: '/api/v1/results', payload: submitDaily() });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/results',
+      payload: submitDaily(),
+    });
     expect(res.statusCode).toBe(201);
     expect(res.json<PostResultsResponse>().dailyStreak).toEqual({
       current: 1,
@@ -300,7 +333,11 @@ describe('POST /api/v1/results - daily streak (Batch C §2.1)', () => {
   it('a same-day repeat of the daily reports the streak unchanged and not extended', async () => {
     const { app } = await setup();
     await app.inject({ method: 'POST', url: '/api/v1/results', payload: submitDaily() });
-    const res = await app.inject({ method: 'POST', url: '/api/v1/results', payload: submitDaily() });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/results',
+      payload: submitDaily(),
+    });
     expect(res.json<PostResultsResponse>().dailyStreak).toEqual({
       current: 1,
       best: 1,
@@ -389,13 +426,63 @@ describe('GET /api/v1/leaderboard', () => {
     });
     const res = await app.inject({ method: 'GET', url: '/api/v1/leaderboard' });
     expect(res.statusCode).toBe(200);
-    const board = leaderboardSchema.parse(res.json());
+    const raw = res.json() as { entries: Record<string, unknown>[] };
+    // profileId is the bearer credential - it must never appear on the wire.
+    expect(raw.entries[0]).not.toHaveProperty('profileId');
+    expect(raw.entries[1]).not.toHaveProperty('profileId');
+    const board = leaderboardSchema.parse(raw);
     expect(board.passageId).toBeNull();
     expect(board.entries.map((e) => e.rank)).toEqual([1, 2]);
     expect(board.entries[0]?.displayName).toBe('ada');
     expect(board.entries[1]?.displayName).toBeNull();
-    expect(board.entries[0]?.profileId).toBe(PROFILE_ID);
+    // No ?self= was passed, so nothing is marked as the requester's own row.
+    expect(board.entries[0]?.isSelf).toBe(false);
+    expect(board.entries[1]?.isSelf).toBe(false);
     expect(board.entries[0]?.createdAt).toBe('2026-07-01T10:00:00.000Z');
+  });
+
+  it('marks the row matching ?self= as isSelf, and only that row', async () => {
+    const resultRepo = {
+      ...createStubResultRepo(),
+      async topResults() {
+        return [
+          {
+            wpm: 120.5,
+            accuracy: 98,
+            consistency: 90,
+            displayName: 'ada',
+            profileId: PROFILE_ID,
+            passageId: 2,
+            band: 'standard' as const,
+            workTitle: 'The Maltese Falcon',
+            authorName: 'Dashiell Hammett',
+            createdAt: new Date('2026-07-01T10:00:00Z'),
+          },
+          {
+            wpm: 88,
+            accuracy: 95,
+            consistency: 85,
+            displayName: null,
+            profileId: '22222222-2222-4222-8222-222222222222',
+            passageId: 2,
+            band: 'standard' as const,
+            workTitle: 'The Maltese Falcon',
+            authorName: 'Dashiell Hammett',
+            createdAt: new Date('2026-07-02T10:00:00Z'),
+          },
+        ];
+      },
+    };
+    app = await buildApp(loadConfig(testEnv), {
+      passageRepo: createStubPassageRepo([shortPassage, fastPassage]),
+      profileRepo: createStubProfileRepo([PROFILE_ID]),
+      resultRepo,
+    });
+    const res = await app.inject({ method: 'GET', url: `/api/v1/leaderboard?self=${PROFILE_ID}` });
+    expect(res.statusCode).toBe(200);
+    const board = leaderboardSchema.parse(res.json());
+    expect(board.entries[0]?.isSelf).toBe(true);
+    expect(board.entries[1]?.isSelf).toBe(false);
   });
 
   it('echoes the passage scope and rejects a bad limit', async () => {

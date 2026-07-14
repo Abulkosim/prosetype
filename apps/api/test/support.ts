@@ -2,7 +2,11 @@ import { createEngine } from '@prosetype/engine';
 import type { CharEvents, Passage } from '@prosetype/schema';
 import { displayNameFromEmail } from '../src/profiles/claim.ts';
 import type { PassageFilter, PassageRepository } from '../src/passages/repository.ts';
-import type { ClaimTokenInput, ProfileRepository } from '../src/profiles/repository.ts';
+import type {
+  ClaimTokenInput,
+  ProfileInfo,
+  ProfileRepository,
+} from '../src/profiles/repository.ts';
 import { advanceDailyStreak, type DailyStreakState } from '../src/profiles/streak.ts';
 import type {
   NewResult,
@@ -105,7 +109,20 @@ export function dailyPick(fixtures: Passage[], dateKey: string): Passage | null 
 /** An unstarted daily streak - the stub's default for any profile not yet seeded. */
 const EMPTY_STREAK: DailyStreakState = { current: 0, best: 0, lastDate: null };
 
-export function createStubProfileRepo(existingIds: string[]): ProfileRepository & {
+/**
+ * Optional handle to a stub ResultRepository (as returned by
+ * createStubResultRepo below) so createStubProfileRepo's deleteProfile can
+ * cascade in-memory, the way the Drizzle repository cascades within one
+ * transaction across the profiles/claim_tokens/results tables.
+ */
+export interface StubResultsHandle {
+  inserted: NewResult[];
+}
+
+export function createStubProfileRepo(
+  existingIds: string[],
+  resultsHandle?: StubResultsHandle,
+): ProfileRepository & {
   created: number;
   claimTokens: ClaimTokenInput[];
 } {
@@ -114,6 +131,12 @@ export function createStubProfileRepo(existingIds: string[]): ProfileRepository 
   // methods below reuse the real pure functions from src/profiles/streak.ts
   // so the stub stays behaviourally identical to the Drizzle repository.
   const streaks = new Map<string, DailyStreakState>();
+  // In-memory account fields (Batch D §3.1), keyed by profile id.
+  const fields = new Map<
+    string,
+    { displayName: string | null; email: string | null; emailVerifiedAt: Date | null }
+  >();
+  const emptyFields = { displayName: null, email: null, emailVerifiedAt: null };
   return {
     created: 0,
     claimTokens: [],
@@ -137,13 +160,43 @@ export function createStubProfileRepo(existingIds: string[]): ProfileRepository 
         return { status: 'invalid' as const };
       }
       t.used = true;
-      return { status: 'ok' as const, profileId: t.profileId, displayName: displayNameFromEmail(t.email) };
+      const displayName = displayNameFromEmail(t.email);
+      fields.set(t.profileId, { displayName, email: t.email, emailVerifiedAt: now });
+      return { status: 'ok' as const, profileId: t.profileId, displayName };
+    },
+    async get(id: string): Promise<ProfileInfo | null> {
+      if (!existingIds.includes(id)) return null;
+      return { id, ...(fields.get(id) ?? emptyFields) };
+    },
+    async setDisplayName(id: string, displayName: string): Promise<boolean> {
+      if (!existingIds.includes(id)) return false;
+      fields.set(id, { ...(fields.get(id) ?? emptyFields), displayName });
+      return true;
+    },
+    async deleteProfile(id: string): Promise<boolean> {
+      const idx = existingIds.indexOf(id);
+      if (idx === -1) return false;
+      existingIds.splice(idx, 1);
+      fields.delete(id);
+      streaks.delete(id);
+      for (const [token, t] of tokens) {
+        if (t.profileId === id) tokens.delete(token);
+      }
+      if (resultsHandle !== undefined) {
+        const remaining = resultsHandle.inserted.filter((r) => r.profileId !== id);
+        resultsHandle.inserted.length = 0;
+        resultsHandle.inserted.push(...remaining);
+      }
+      return true;
     },
     async getDailyStreak(profileId: string): Promise<DailyStreakState> {
       return streaks.get(profileId) ?? EMPTY_STREAK;
     },
     async recordDailyCompletion(profileId: string, todayKey: string) {
-      const { state, extended } = advanceDailyStreak(streaks.get(profileId) ?? EMPTY_STREAK, todayKey);
+      const { state, extended } = advanceDailyStreak(
+        streaks.get(profileId) ?? EMPTY_STREAK,
+        todayKey,
+      );
       if (extended) streaks.set(profileId, state);
       return { state, extended };
     },

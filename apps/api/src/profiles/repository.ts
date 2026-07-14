@@ -19,8 +19,15 @@ export interface ClaimTokenInput {
  * and this one's results were merged in) and the display name.
  */
 export type ClaimOutcome =
-  | { status: 'ok'; profileId: string; displayName: string }
-  | { status: 'invalid' };
+  { status: 'ok'; profileId: string; displayName: string } | { status: 'invalid' };
+
+/** A profile's stored account fields (Batch D, §3.1 account management). */
+export interface ProfileInfo {
+  id: string;
+  displayName: string | null;
+  email: string | null;
+  emailVerifiedAt: Date | null;
+}
 
 export interface ProfileRepository {
   /** Create an anonymous profile; returns its generated uuid. */
@@ -29,6 +36,19 @@ export interface ProfileRepository {
   exists(id: string): Promise<boolean>;
   /** Persist a pending claim magic link (§10.3). */
   createClaimToken(input: ClaimTokenInput): Promise<void>;
+  /** This profile's stored fields, or null if it doesn't exist (§3.1). */
+  get(id: string): Promise<ProfileInfo | null>;
+  /**
+   * Rename the display name shown on the leaderboard (§3.1). False when the
+   * profile is missing.
+   */
+  setDisplayName(id: string, displayName: string): Promise<boolean>;
+  /**
+   * Permanently delete a profile and everything keyed on it - its pending
+   * claim tokens and its results - in one transaction (§3.1). False when the
+   * profile is missing.
+   */
+  deleteProfile(id: string): Promise<boolean>;
   /**
    * Verify a claim token and perform the claim/merge atomically (§10.3):
    * consume the token, set the email on its profile (or merge this profile's

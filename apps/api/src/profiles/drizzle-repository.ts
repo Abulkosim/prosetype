@@ -2,7 +2,12 @@ import { and, eq, isNull } from 'drizzle-orm';
 import type { Db } from '../db/client.ts';
 import { claimTokens, profiles, results } from '../db/schema.ts';
 import { displayNameFromEmail } from './claim.ts';
-import type { ClaimOutcome, ClaimTokenInput, ProfileRepository } from './repository.ts';
+import type {
+  ClaimOutcome,
+  ClaimTokenInput,
+  ProfileInfo,
+  ProfileRepository,
+} from './repository.ts';
 import { advanceDailyStreak, mergeDailyStreaks, type DailyStreakState } from './streak.ts';
 
 /** The daily-streak columns, selected together wherever a profile row is read. */
@@ -112,6 +117,44 @@ export function createDrizzleProfileRepository(db: Db): ProfileRepository {
           .set({ email, emailVerifiedAt: now, displayName })
           .where(eq(profiles.id, requesterId));
         return { status: 'ok', profileId: requesterId, displayName };
+      });
+    },
+
+    async get(id: string): Promise<ProfileInfo | null> {
+      const [row] = await db
+        .select({
+          id: profiles.id,
+          displayName: profiles.displayName,
+          email: profiles.email,
+          emailVerifiedAt: profiles.emailVerifiedAt,
+        })
+        .from(profiles)
+        .where(eq(profiles.id, id))
+        .limit(1);
+      return row ?? null;
+    },
+
+    async setDisplayName(id: string, displayName: string): Promise<boolean> {
+      const rows = await db
+        .update(profiles)
+        .set({ displayName })
+        .where(eq(profiles.id, id))
+        .returning({ id: profiles.id });
+      return rows.length > 0;
+    },
+
+    async deleteProfile(id: string): Promise<boolean> {
+      return db.transaction(async (tx) => {
+        const rows = await tx
+          .select({ id: profiles.id })
+          .from(profiles)
+          .where(eq(profiles.id, id))
+          .limit(1);
+        if (rows.length === 0) return false;
+        await tx.delete(claimTokens).where(eq(claimTokens.profileId, id));
+        await tx.delete(results).where(eq(results.profileId, id));
+        await tx.delete(profiles).where(eq(profiles.id, id));
+        return true;
       });
     },
 
