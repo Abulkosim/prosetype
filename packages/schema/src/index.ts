@@ -44,7 +44,14 @@ export {
   type DailyStreakInfo,
 } from './results.ts';
 
-export { postProfilesResponseSchema, type PostProfilesResponse } from './profiles.ts';
+export {
+  postProfilesResponseSchema,
+  getProfileResponseSchema,
+  renameProfileRequestSchema,
+  type PostProfilesResponse,
+  type GetProfileResponse,
+  type RenameProfileRequest,
+} from './profiles.ts';
 
 export {
   leaderboardEntrySchema,
