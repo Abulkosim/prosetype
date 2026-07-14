@@ -1,0 +1,16 @@
+---
+description: Testing conventions - vitest, Playwright e2e, what each layer may depend on
+globs: **/test/**,**/*.test.ts,**/e2e/**,**/playwright.config.ts,**/vitest.config.ts
+alwaysApply: false
+---
+
+# Testing
+
+Unit tests: vitest 4, colocated under each package's `test/`. E2e: Playwright, `apps/web/e2e/`.
+
+- `pnpm test` must pass on a machine with **no database**. API route tests stub repositories; the DB-backed integration suite (`apps/api/test/integration.test.ts`) auto-skips when Postgres is unreachable and always runs in CI.
+- Integration tests self-seed distinctive `zz-it-*` fixtures and clean them up. Never write a test that depends on the ingested corpus contents.
+- Engine tests pin exact stat values to 2 decimals (Monkeytype parity). Update them only when the behavior change is deliberate — and record why in `DECISIONS.md`.
+- The Playwright smoke types via real keyboard events at ~40ms/char, deliberately staying under the API's wpm-350 / duration-3s sanity limits, and awaits the POST /results round-trip before reloading. Keep new e2e flows inside those server-side bounds.
+- Playwright config starts both servers itself in CI and reuses running ones locally — locally, start Postgres + API + web first if you need passage flows.
+- Prefer testing through public seams (`buildApp` with stubbed repos, engine public API) over reaching into internals.

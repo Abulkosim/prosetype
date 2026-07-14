@@ -1,0 +1,29 @@
+---
+description: apps/api conventions - Fastify, Drizzle, repository pattern, error shapes, validation order
+globs: apps/api/**
+alwaysApply: false
+---
+
+# API (apps/api)
+
+Fastify 5 + Drizzle + Postgres. All routes live under `/api/v1` (including `/api/v1/healthz`). No build step — `node --watch --env-file-if-exists=../../.env src/server.ts` runs the TS directly on Node 24; keep imports Node-type-stripping-safe (no enums/namespaces/parameter properties, explicit `.ts` extensions).
+
+## Architecture
+
+- DB access goes behind repository interfaces (e.g. `PassageRepository` in `src/passages/`); `buildApp` accepts optional repo deps so route unit tests stub them without Postgres. New data access follows the same pattern.
+- `build.ts` resolves each repo as `deps.X ?? drizzle(db())` with a `db()` thunk — the Postgres client is only created if a repo was left to default.
+- Drizzle numeric columns use `mode: 'number'`. Migrations: `pnpm --filter api db:generate` (no DB needed) then `db:migrate`.
+- Repository rows are re-parsed through the shared zod schema before returning, so DB/DTO drift fails loudly at the boundary.
+
+## Request/response conventions
+
+- Validation with zod v4 (`z.uuid()`, `z.strictObject`, `z.prettifyError` for 400 messages).
+- Error bodies: `{ error: 'BadRequest' | 'NotFound', message }`. Reject invalid input loudly (400) — never silently truncate or coerce.
+- Rate limiting: global 100/min via `@fastify/rate-limit`; sensitive routes override per-route (`POST /results` is 20/min).
+- Server-side sanity order for result submission (keep it): zod parse → profile exists (404) → passage exists (404) → event-count plausibility → engine recompute → duration/wpm bounds → insert with server-computed values. Client stat mismatches are stored and flagged, never rejected.
+- CORS answers only the configured static origin, never reflects the request origin.
+
+## Testing
+
+- Route unit tests stub repositories — no DB required; `pnpm test` must stay green on a DB-less machine.
+- Integration tests (`test/integration.test.ts`) probe the DB at load and `describe.skip` when unreachable; they self-seed `zz-it-*` fixtures and clean up — never depend on the ingested corpus.

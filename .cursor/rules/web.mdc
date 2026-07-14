@@ -1,0 +1,35 @@
+---
+description: apps/web conventions - React, zustand, styling palette, stage/typing UI rules
+globs: apps/web/**
+alwaysApply: false
+---
+
+# Web app (apps/web)
+
+React 19 + react-router 7 (library mode: `BrowserRouter`/`Routes`) + zustand 5 + Tailwind 4 (via `@tailwindcss/vite`). Vite dev server on :5173 proxies `/api` → `http://localhost:3001`.
+
+## Design language
+
+Cinematic "letterbox" look. Colors come from CSS variables in `src/styles.css` — never hardcode hex values in components:
+
+- `--color-stage` (background, never pure black/white), `--color-bone` (foreground/typed), `--color-smoke` (pending/muted), `--color-tungsten` (amber accent), `--color-blood` (errors), `--color-bar` (letterbox bars).
+- Both a dark and a paper-light theme redefine the same variables; utilities reference `var(--color-*)`, so new UI must too.
+- Errors are never color-alone — pair blood with an underline or other mark.
+- Respect `prefers-reduced-motion`: transitions are globally zeroed there; use opacity-only fades (motion-safe) as the fallback, not slides.
+
+## Typing stage rules
+
+- Stage input uses **native** `addEventListener` (`beforeinput` needs `inputType` + cancelable), not React synthetic props.
+- Tab/Esc are handled at document level (capture) while `/` is mounted: Tab = next passage, never moves focus. Don't add competing Tab/Esc listeners (the result view deliberately has none).
+- Typing state lives in `src/stage/typingStore.ts` (zustand). Shared chrome (letterbox bars, caps-lock tag) reads from stores, not prop drilling.
+- Non-BMP input (surrogate pairs) is skipped by the store — the wire format is one UTF-16 char.
+
+## Data & persistence
+
+- All API calls go through `src/lib/api.ts`, which validates responses via a structural `Parser<T>` satisfied by the shared `@prosetype/schema` zod schemas — the web app has **no direct zod dependency**; keep it that way.
+- localStorage keys are namespaced `prosetype.*`; storage failures (private mode) must fall back gracefully (see `lib/profile.ts`).
+- Result submission is fire-and-forget with one retry and a stale-token guard; only failures surface in the UI.
+
+## Verifying changes
+
+`cd apps/web && pnpm exec vite --port 5199` runs the app standalone (don't fight :5173). Without the API, chrome/palette/settings/music still work; passage flows need Postgres + the API up. E2e smoke lives in `apps/web/e2e/smoke.spec.ts` — it types at real keyboard speed (keep wpm sanity limits in mind).

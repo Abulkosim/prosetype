@@ -1,0 +1,40 @@
+---
+description: Project overview, commands, and repo-wide conventions for prosetype
+alwaysApply: true
+---
+
+# prosetype
+
+A typing practice app built on real prose (public-domain literature from Project Gutenberg). pnpm monorepo, TypeScript throughout: Fastify API, React/Vite web app, Postgres via Drizzle, plus a zero-dependency typing engine.
+
+## Layout
+
+- `apps/web` — React 19 + Vite 7 + Tailwind 4 + zustand. The typing UI ("stage"), result view, library, stats, leaderboard.
+- `apps/api` — Fastify 5 + Drizzle + Postgres. Routes under `/api/v1`. No build step: Node 24 runs the TS sources directly via native type stripping.
+- `packages/engine` — pure typing engine (keystroke log, stats, heatmap, replay). Zero runtime dependencies.
+- `packages/schema` — zod v4 schemas. Single source of truth for the wire format (DTOs, charEvents).
+- `scripts` — corpus ingest and curation tooling (its own workspace package).
+- `corpus/passages.yaml` — the passage corpus, validated strictly on ingest.
+
+## Commands
+
+Requires **Node 24** (`.nvmrc`) and pnpm 11. Run `nvm use` first if the shell defaults to an older Node — the API and ingest rely on Node 24 native TS type stripping.
+
+```sh
+pnpm dev                    # web :5173 (proxies /api) + api :3001
+docker compose up -d        # local Postgres
+pnpm --filter api db:migrate
+pnpm ingest                 # seed corpus (needs Node 24 + DATABASE_URL)
+pnpm lint && pnpm typecheck && pnpm test
+pnpm test:e2e               # Playwright smoke (apps/web/e2e)
+```
+
+CI (GitHub Actions) runs lint → typecheck → test (with Postgres service) → e2e, in that order. Match it locally before pushing.
+
+## Repo-wide conventions
+
+- **Record decisions**: every non-obvious choice (versions, shapes the plan is silent on, trade-offs) gets one line in `DECISIONS.md` — what, why. Read it before "fixing" something that looks odd; it is usually deliberate.
+- `IMPROVEMENTS.md` is the user-facing roadmap; `deploy/` has production notes.
+- Env vars load from root `.env` via `node --env-file-if-exists`; keep `.env.example` current, never commit real env files.
+- Prettier: single quotes, semicolons, trailing commas, 100-col width. ESLint flat config; `@typescript-eslint/no-explicit-any` is an **error** — never introduce `any`.
+- Prefer boring, pinned, fully-supported dependency versions over days-old majors.

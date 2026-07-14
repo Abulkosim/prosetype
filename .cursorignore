@@ -1,0 +1,7 @@
+# Cursor may not read or index these (secrets & noise).
+# Note: .gitignore'd paths (node_modules, dist, coverage, .env) are already excluded.
+.env
+.env.*
+!.env.example
+*.pem
+*.key

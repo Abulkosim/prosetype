@@ -1,0 +1,21 @@
+---
+description: packages/engine and packages/schema conventions - wire format ownership, Monkeytype parity, dependency rules
+globs: packages/**
+alwaysApply: false
+---
+
+# Engine & schema (packages/*)
+
+## packages/schema — owns the wire format
+
+- zod v4 schemas are the **single source of truth** for every DTO and for the charEvents keystroke-log format. API, web, and engine all derive from here; never redefine a wire shape elsewhere.
+- The 6000-event / 64KB charEvents caps are enforced HERE (wire boundary), measured as UTF-8 bytes of `JSON.stringify(log)` via `TextEncoder`. The engine deliberately does not enforce them mid-run.
+- Use `z.strictObject` for inputs where unknown keys indicate a bug (corpus entries, submissions).
+
+## packages/engine — pure, zero-dependency
+
+- **Zero runtime dependencies.** `@prosetype/schema` is a type-only devDependency (`import type` of CharEvent etc.). The engine defines its own `RunStats` interface rather than importing a zod-derived type — keep it that way.
+- Stats are **Monkeytype-compatible and pinned**: accuracy counts every keypress (retypes included, backspaces never), consistency uses `kogasa` verified verbatim against Monkeytype's `packages/util/src/numbers.ts`, values round to 2 decimals. Tests pin exact values — a "small refactor" that shifts the 2nd decimal is a regression.
+- Timestamps: caller-clock ms normalized to integers since first keystroke, clamped monotonic non-decreasing. A backwards clock can never corrupt the log.
+- Event-index conventions (extras/over-cap/space commits/backspace-across-words) are documented in `DECISIONS.md` — read the relevant lines before touching `engine.ts` or `replayEngine.ts`. Replay must reproduce the run exactly from the log.
+- Correctness first: don't add caps, throttles, or approximations inside the engine for performance without a measured need.
