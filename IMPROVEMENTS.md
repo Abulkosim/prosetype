@@ -174,11 +174,19 @@ new library passage listing from 1.5.
 Claiming sets a display name once from the email local part; there's no
 way to change it, sign out, or delete data.
 
-- Rename (shows on leaderboard — users will want this quickly).
-- Sign out (drop local profileId) and delete-my-data (GDPR hygiene:
-delete profile + results).
-- A minimal `/account` page or palette commands; claimed-state indicator
-in the letterbox.
+- ~~Rename (shows on leaderboard — users will want this quickly).~~
+Shipped: `PATCH /profiles/:id` + rename form on `/account`.
+- ~~Sign out (drop local profileId) and delete-my-data (GDPR hygiene:
+delete profile + results).~~ Shipped: sign out clears the local id;
+`DELETE /profiles/:id` removes profile + results + claim tokens in one
+transaction, behind a two-step confirm.
+- ~~A minimal `/account` page or palette commands; claimed-state indicator
+in the letterbox.~~ Shipped: `/account` page (three states: no profile /
+anonymous / claimed), the palette's claim command became "Account", and
+the header nav shows the display name once claimed.
+- Prerequisite shipped alongside: the leaderboard no longer exposes raw
+`profileId` (it is the bearer credential the new rename/delete endpoints
+key on) — the client sends `?self=` and the server marks `isSelf` instead.
 
 
 
@@ -187,9 +195,14 @@ in the letterbox.
 The engine keeps a full keystroke log — the README sells this — but the
 result view only shows the static heatmap.
 
-- "Watch replay" on the result view: re-render the passage board driven
+- ~~"Watch replay" on the result view: re-render the passage board driven
 by the charEvents timeline (1×/2× speed). High wow-factor, pure
-client-side, data already stored.
+client-side, data already stored.~~ Shipped: `ReplayEngine` in
+`@prosetype/engine` (same reducer as the live engine, so replay cannot
+drift from live rendering) drives `PassageBoard` from a rAF clock;
+"watch replay" swaps the heatmap for the replay with pause, 1×/2×, and
+watch-again. Works for prose and word runs. Known cosmetic limit: the
+wire log carries no typed characters, so extras replay as blanks.
 
 
 
@@ -243,7 +256,8 @@ needs passage caching; nice-to-have, not asked for yet.
   shipped 2026-07-13.
 3. ~~**Batch C:** 2.1 streak, 2.2 weak-key drill, 2.3 word-mode toggles.~~
   ✅ shipped 2026-07-14 (timed mode deferred).
-4. **Batch D:** 3.1 account management, 3.2 replay, then reassess.
+4. ~~**Batch D:** 3.1 account management, 3.2 replay, then reassess.~~
+  ✅ shipped 2026-07-14.
 
 Rationale: Batch A fixes the silent-failure moments (confused first
 visit, unnoticed PB, dead mobile tab). Batch B makes the corpus the
