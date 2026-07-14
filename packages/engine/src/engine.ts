@@ -2,6 +2,7 @@ import type { CharEvent, CharEvents } from '@prosetype/schema';
 import { InvalidInputError } from './errors.ts';
 import { parsePassage, type ParsedPassage } from './passage.ts';
 import { statsFromState, type RunStats } from './replay.ts';
+import { wordSnapshotOf, type WordSnapshot } from './snapshot.ts';
 import {
   ADD_CORRECT,
   ADD_EXTRA,
@@ -11,7 +12,6 @@ import {
   SPACE_COMMIT,
   applyEvent,
   createRunState,
-  type CharState,
   type RunState,
   type WordRunState,
 } from './state.ts';
@@ -19,26 +19,7 @@ import {
 /** Lifecycle per plan §7.1: idle until the first character keystroke. */
 export type EngineStatus = 'idle' | 'running' | 'complete';
 
-/**
- * Immutable per-word view. Word objects are cached and only replaced when the
- * word actually changes, so `React.memo` components can compare by reference.
- */
-export interface WordSnapshot {
-  readonly wordIndex: number;
-  /** The target word text (no spaces). */
-  readonly target: string;
-  /** Passage index of the word's first character. */
-  readonly start: number;
-  /** Actually typed characters in the target slots (length <= target.length). */
-  readonly typed: string;
-  /** State per target character (length === target.length). */
-  readonly states: readonly CharState[];
-  /** Extra characters typed beyond the word (state `extra`, max 8). */
-  readonly extras: string;
-  readonly committed: boolean;
-  /** True iff the word is committed and fully correct. */
-  readonly committedCorrect: boolean;
-}
+export type { WordSnapshot };
 
 export interface EngineSnapshot {
   readonly status: EngineStatus;
@@ -242,16 +223,7 @@ export class TypingEngine {
     if (cached !== null && cached !== undefined) return cached;
     const word = this.#passage.words[wi] as ParsedPassage['words'][number];
     const ws = this.#state.words[wi] as WordRunState;
-    const snapshot: WordSnapshot = {
-      wordIndex: wi,
-      target: word.text,
-      start: word.start,
-      typed: ws.typed.join(''),
-      states: [...ws.slotStates],
-      extras: ws.extras.join(''),
-      committed: ws.committed,
-      committedCorrect: ws.committed && ws.committedCorrect,
-    };
+    const snapshot = wordSnapshotOf(word, ws, wi);
     this.#wordSnapshots[wi] = snapshot;
     return snapshot;
   }
