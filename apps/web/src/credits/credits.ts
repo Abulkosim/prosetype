@@ -44,6 +44,10 @@ export const CREDIT_CARDS: readonly CreditCard[] = [
     body: 'claim your name with an email. no password, ever.',
   },
   {
+    title: 'with a score',
+    body: 'lo-fi · classical · ambient — the ♪ in the corner starts it',
+  },
+  {
     title: 'esc runs the show',
     body: 'every command, one key away',
   },
