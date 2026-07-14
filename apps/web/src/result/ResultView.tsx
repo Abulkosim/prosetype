@@ -8,6 +8,7 @@ import { shareResultCard } from '../lib/shareCard';
 import { hasSeenResultHint, markSeenResultHint } from '../settings/onboarding';
 import { useTypingStore, wordTestLabel, type ActiveTest, type BestInfo } from '../stage/typingStore';
 import { HeatmapPassage } from './HeatmapPassage';
+import { ResultReplay } from './ResultReplay';
 import { WpmSparkline } from './WpmSparkline';
 
 /**
@@ -127,6 +128,7 @@ export function ResultView({ run, test, onNext }: ResultViewProps): ReactElement
   const { stats } = run;
   const text = test.kind === 'passage' ? test.passage.text : test.text;
   const [share, setShare] = useState<ShareState>('idle');
+  const [replaying, setReplaying] = useState(false);
   const bestInfo = useTypingStore((s) => s.bestInfo);
   const heatmap = useMemo(() => computeHeatmap(text, run.log), [text, run.log]);
   const buckets = useMemo(() => computePerSecondRawWpm(text, run.log), [text, run.log]);
@@ -190,7 +192,11 @@ export function ResultView({ run, test, onNext }: ResultViewProps): ReactElement
       </div>
 
       <div className="mt-10">
-        <HeatmapPassage text={text} heatmap={heatmap} />
+        {replaying ? (
+          <ResultReplay text={text} log={run.log} onExit={() => setReplaying(false)} />
+        ) : (
+          <HeatmapPassage text={text} heatmap={heatmap} />
+        )}
         <div className="mt-6">
           {test.kind === 'passage' ? (
             <Epigraph passage={test.passage} />
@@ -230,6 +236,13 @@ export function ResultView({ run, test, onNext }: ResultViewProps): ReactElement
           className="subtitle text-smoke transition-opacity duration-150 hover:text-bone"
         >
           tab &middot; next passage
+        </button>
+        <button
+          type="button"
+          onClick={() => setReplaying(true)}
+          className="subtitle text-smoke transition-opacity duration-150 hover:text-bone"
+        >
+          watch replay
         </button>
         {passage !== null ? (
           <button
