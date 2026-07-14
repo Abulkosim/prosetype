@@ -23,3 +23,7 @@ test-results/
 # logs & OS noise
 *.log
 .DS_Store
+
+# per-user agent state (project settings/skills ARE committed)
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
