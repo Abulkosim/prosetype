@@ -1,12 +1,8 @@
-
-
 - **Real email transport.** `createResendMailer` (native `fetch`, no SDK) is
 wired into `build.ts`; it activates when `RESEND_API_KEY` + `EMAIL_FROM` are
 set, else the console mailer logs the link. Config enforces the pair.
 - **Domain settled.** `prosetype.app` - placeholders swapped in the web meta
 (`index.html`, `sitemap.xml`, `robots.txt`) and `deploy/.env.example`.
-
-
 
 ## Owner steps (external - I can't do these for you)
 
@@ -20,22 +16,4 @@ set, else the console mailer logs the link. Config enforces the pair.
   SPF/DKIM DNS records), and mint an API key.
 4. **Point DNS**: an `A` record for `prosetype.app` (and `www` if wanted) at the
   VPS IP. Caddy provisions TLS automatically once it resolves.
-
-
-
-## Deploy (on the host, once the above is ready)
-
-```sh
-git clone https://github.com/Abulkosim/prosetype.git && cd prosetype
-cp deploy/.env.example deploy/.env
-# edit deploy/.env: POSTGRES_PASSWORD (+ matching DATABASE_URL), and the
-# RESEND_API_KEY / EMAIL_FROM lines. CORS_ORIGIN/SITE_ADDRESS already = prosetype.app
-docker compose -f deploy/docker-compose.yml up -d --build
-# seed the corpus once against the live DB:
-docker compose -f deploy/docker-compose.yml run --rm api pnpm ingest
-```
-
-Then smoke-test: load [https://prosetype.app](https://prosetype.app), type a run, and claim a profile to  
-confirm the Resend email actually arrives. See `deploy/README.md` for restore  
-and update procedures.
 
