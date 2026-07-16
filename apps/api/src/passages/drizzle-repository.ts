@@ -8,7 +8,7 @@ import {
   type PassageSummaryItem,
   type ThemeListItem,
 } from '@typeprose/schema';
-import { and, arrayContains, asc, eq, notInArray, sql, type SQL } from 'drizzle-orm';
+import { and, arrayContains, asc, eq, inArray, notInArray, sql, type SQL } from 'drizzle-orm';
 import type { Db } from '../db/client.ts';
 import { authors, passages, works } from '../db/schema.ts';
 import type { PassageFilter, PassageListFilter, PassageRepository } from './repository.ts';
@@ -44,6 +44,35 @@ const passageSelection = {
     era: authors.era,
   },
 };
+
+/** Selection shaped for the PassageSummaryItem DTO (library + favorites listings). */
+const summarySelection = {
+  id: passages.id,
+  text: passages.text,
+  band: passages.band,
+  workTitle: works.title,
+  authorSlug: authors.slug,
+  authorName: authors.name,
+};
+
+type SummaryRow = {
+  id: number;
+  text: string;
+  band: string;
+  workTitle: string;
+  authorSlug: string;
+  authorName: string;
+};
+
+function toSummary(r: SummaryRow): PassageSummaryItem {
+  return passageSummaryItemSchema.parse({
+    id: r.id,
+    band: r.band,
+    opening: openingOf(r.text),
+    work: { title: r.workTitle },
+    author: { slug: r.authorSlug, name: r.authorName },
+  });
+}
 
 /**
  * Drizzle-backed PassageRepository. Rows are parsed through the shared
@@ -137,28 +166,27 @@ export function createDrizzlePassageRepository(db: Db): PassageRepository {
         conditions.push(eq(authors.slug, filter.author));
       }
       const rows = await db
-        .select({
-          id: passages.id,
-          text: passages.text,
-          band: passages.band,
-          workTitle: works.title,
-          authorSlug: authors.slug,
-          authorName: authors.name,
-        })
+        .select(summarySelection)
         .from(passages)
         .innerJoin(works, eq(passages.workId, works.id))
         .innerJoin(authors, eq(works.authorId, authors.id))
         .where(and(...conditions))
         .orderBy(asc(authors.name), asc(works.title), asc(passages.id));
-      return rows.map((r) =>
-        passageSummaryItemSchema.parse({
-          id: r.id,
-          band: r.band,
-          opening: openingOf(r.text),
-          work: { title: r.workTitle },
-          author: { slug: r.authorSlug, name: r.authorName },
-        }),
-      );
+      return rows.map(toSummary);
+    },
+
+    async summariesByIds(ids: number[]): Promise<PassageSummaryItem[]> {
+      if (ids.length === 0) return [];
+      const rows = await db
+        .select(summarySelection)
+        .from(passages)
+        .innerJoin(works, eq(passages.workId, works.id))
+        .innerJoin(authors, eq(works.authorId, authors.id))
+        .where(inArray(passages.id, ids));
+      // The DB returns them in an arbitrary order; reorder to match the caller's
+      // id order (favorite order) and drop any ids with no matching passage.
+      const byId = new Map(rows.map((r) => [r.id, toSummary(r)]));
+      return ids.map((id) => byId.get(id)).filter((s): s is PassageSummaryItem => s !== undefined);
     },
   };
 }

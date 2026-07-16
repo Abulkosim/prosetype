@@ -40,6 +40,15 @@ function fixedProfileRepo(ids: string[]): ProfileRepository {
     async deleteProfile(id: string) {
       return ids.includes(id);
     },
+    async listFavoriteIds() {
+      return [];
+    },
+    async addFavorite() {
+      // no-op stub
+    },
+    async removeFavorite() {
+      // no-op stub
+    },
     async getDailyStreak() {
       return { current: 0, best: 0, lastDate: null };
     },
@@ -481,5 +490,93 @@ describe('account management (§3.1)', () => {
     const { app } = await setup();
     const res = await app.inject({ method: 'DELETE', url: `/api/v1/profiles/${UNKNOWN_ID}` });
     expect(res.statusCode).toBe(404);
+  });
+});
+
+describe('favorites (§3.3)', () => {
+  const FAV_ID = '88888888-8888-4888-8888-888888888888';
+  const UNKNOWN_ID = '99999999-9999-4999-8999-999999999999';
+  let app: FastifyInstance | null = null;
+
+  afterEach(async () => {
+    if (app !== null) {
+      await app.close();
+      app = null;
+    }
+  });
+
+  async function setup() {
+    const resultRepo = createStubResultRepo();
+    const profileRepo = createStubProfileRepo([FAV_ID], resultRepo);
+    app = await buildApp(loadConfig(testEnv), {
+      passageRepo: createStubPassageRepo([shortPassage]),
+      profileRepo,
+      resultRepo,
+    });
+    return app;
+  }
+
+  it('GET favorites is empty for a fresh profile', async () => {
+    const app = await setup();
+    const res = await app.inject({ method: 'GET', url: `/api/v1/profiles/${FAV_ID}/favorites` });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual([]);
+  });
+
+  it('PUT stars a passage; GET then lists its summary', async () => {
+    const app = await setup();
+    const put = await app.inject({
+      method: 'PUT',
+      url: `/api/v1/profiles/${FAV_ID}/favorites/1`,
+    });
+    expect(put.statusCode).toBe(204);
+    const res = await app.inject({ method: 'GET', url: `/api/v1/profiles/${FAV_ID}/favorites` });
+    expect(res.statusCode).toBe(200);
+    const items = res.json<Array<{ id: number }>>();
+    expect(items).toHaveLength(1);
+    expect(items[0]?.id).toBe(1);
+  });
+
+  it('PUT is idempotent (starring twice keeps one)', async () => {
+    const app = await setup();
+    await app.inject({ method: 'PUT', url: `/api/v1/profiles/${FAV_ID}/favorites/1` });
+    await app.inject({ method: 'PUT', url: `/api/v1/profiles/${FAV_ID}/favorites/1` });
+    const res = await app.inject({ method: 'GET', url: `/api/v1/profiles/${FAV_ID}/favorites` });
+    expect(res.json()).toHaveLength(1);
+  });
+
+  it('DELETE unstars a passage', async () => {
+    const app = await setup();
+    await app.inject({ method: 'PUT', url: `/api/v1/profiles/${FAV_ID}/favorites/1` });
+    const del = await app.inject({
+      method: 'DELETE',
+      url: `/api/v1/profiles/${FAV_ID}/favorites/1`,
+    });
+    expect(del.statusCode).toBe(204);
+    const res = await app.inject({ method: 'GET', url: `/api/v1/profiles/${FAV_ID}/favorites` });
+    expect(res.json()).toEqual([]);
+  });
+
+  it('PUT 404s for an unknown passage', async () => {
+    const app = await setup();
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/api/v1/profiles/${FAV_ID}/favorites/999`,
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('GET/PUT 404 for an unknown profile', async () => {
+    const app = await setup();
+    const get = await app.inject({
+      method: 'GET',
+      url: `/api/v1/profiles/${UNKNOWN_ID}/favorites`,
+    });
+    expect(get.statusCode).toBe(404);
+    const put = await app.inject({
+      method: 'PUT',
+      url: `/api/v1/profiles/${UNKNOWN_ID}/favorites/1`,
+    });
+    expect(put.statusCode).toBe(404);
   });
 });

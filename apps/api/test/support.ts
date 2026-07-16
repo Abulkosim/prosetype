@@ -95,6 +95,18 @@ export function createStubPassageRepo(fixtures: Passage[]): PassageRepository {
     async list() {
       return [];
     },
+    async summariesByIds(ids: number[]) {
+      return ids
+        .map((id) => fixtures.find((p) => p.id === id))
+        .filter((p): p is Passage => p !== undefined)
+        .map((p) => ({
+          id: p.id,
+          band: p.band,
+          opening: p.text.slice(0, 60),
+          work: { title: p.work.title },
+          author: { slug: p.author.slug, name: p.author.name },
+        }));
+    },
   };
 }
 
@@ -137,6 +149,8 @@ export function createStubProfileRepo(
     { displayName: string | null; email: string | null; emailVerifiedAt: Date | null }
   >();
   const emptyFields = { displayName: null, email: null, emailVerifiedAt: null };
+  // In-memory favorites (§3.3), newest first, keyed by profile id.
+  const favs = new Map<string, number[]>();
   return {
     created: 0,
     claimTokens: [],
@@ -179,6 +193,7 @@ export function createStubProfileRepo(
       existingIds.splice(idx, 1);
       fields.delete(id);
       streaks.delete(id);
+      favs.delete(id);
       for (const [token, t] of tokens) {
         if (t.profileId === id) tokens.delete(token);
       }
@@ -188,6 +203,20 @@ export function createStubProfileRepo(
         resultsHandle.inserted.push(...remaining);
       }
       return true;
+    },
+    async listFavoriteIds(profileId: string): Promise<number[]> {
+      return favs.get(profileId) ?? [];
+    },
+    async addFavorite(profileId: string, passageId: number): Promise<void> {
+      const current = favs.get(profileId) ?? [];
+      if (!current.includes(passageId)) favs.set(profileId, [passageId, ...current]);
+    },
+    async removeFavorite(profileId: string, passageId: number): Promise<void> {
+      const current = favs.get(profileId) ?? [];
+      favs.set(
+        profileId,
+        current.filter((id) => id !== passageId),
+      );
     },
     async getDailyStreak(profileId: string): Promise<DailyStreakState> {
       return streaks.get(profileId) ?? EMPTY_STREAK;

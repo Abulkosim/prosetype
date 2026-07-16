@@ -8,6 +8,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { Mailer } from '../mail/mailer.ts';
 import { utcDateKey } from '../passages/daily.ts';
+import type { PassageRepository } from '../passages/repository.ts';
 import { CLAIM_TOKEN_TTL_MS, generateClaimToken } from '../profiles/claim.ts';
 import type { ProfileInfo, ProfileRepository } from '../profiles/repository.ts';
 import { effectiveDailyStreak } from '../profiles/streak.ts';
@@ -19,6 +20,12 @@ import { sendBadRequest, sendBadRequestMessage, sendNotFound } from './http.ts';
 export const STATS_HISTORY_LIMIT = 50;
 
 const idParamsSchema = z.object({ id: z.uuid() });
+
+/** Params for the favorite add/remove routes: profile uuid + passage id (§3.3). */
+const favoriteParamsSchema = z.object({
+  id: z.uuid(),
+  passageId: z.coerce.number().int().positive(),
+});
 
 /** Shape the stored profile fields into the wire response (§3.1). */
 function toProfileResponse(profile: ProfileInfo): GetProfileResponse {
@@ -33,6 +40,8 @@ function toProfileResponse(profile: ProfileInfo): GetProfileResponse {
 export interface ProfileRoutesOptions {
   profiles: ProfileRepository;
   results: ResultRepository;
+  /** Catalog owner: turns favorited ids into passage summaries (§3.3). */
+  passages: PassageRepository;
   /** Transport for claim magic links (§10.3). */
   mailer: Mailer;
   /** Web origin the magic link points at (the /claim page). */
@@ -47,7 +56,7 @@ export async function profileRoutes(
   app: FastifyInstance,
   opts: ProfileRoutesOptions,
 ): Promise<void> {
-  const { profiles, results, mailer, webOrigin } = opts;
+  const { profiles, results, passages, mailer, webOrigin } = opts;
 
   app.post('/profiles', async (_request, reply) => {
     const id = await profiles.create();
@@ -142,6 +151,47 @@ export async function profileRoutes(
     if (!ok) {
       return sendNotFound(reply, `Profile ${parsed.data.id} not found`);
     }
+    return reply.code(204).send();
+  });
+
+  // Favorites (§3.3). The profile id in the path is the bearer credential, same
+  // as rename/delete - no separate auth. Add/remove are idempotent.
+  app.get('/profiles/:id/favorites', async (request, reply) => {
+    const parsed = idParamsSchema.safeParse(request.params);
+    if (!parsed.success) {
+      return sendBadRequest(reply, parsed.error);
+    }
+    if (!(await profiles.exists(parsed.data.id))) {
+      return sendNotFound(reply, `Profile ${parsed.data.id} not found`);
+    }
+    const ids = await profiles.listFavoriteIds(parsed.data.id);
+    return passages.summariesByIds(ids);
+  });
+
+  app.put('/profiles/:id/favorites/:passageId', async (request, reply) => {
+    const parsed = favoriteParamsSchema.safeParse(request.params);
+    if (!parsed.success) {
+      return sendBadRequest(reply, parsed.error);
+    }
+    if (!(await profiles.exists(parsed.data.id))) {
+      return sendNotFound(reply, `Profile ${parsed.data.id} not found`);
+    }
+    if ((await passages.findById(parsed.data.passageId)) === null) {
+      return sendNotFound(reply, `Passage ${String(parsed.data.passageId)} not found`);
+    }
+    await profiles.addFavorite(parsed.data.id, parsed.data.passageId);
+    return reply.code(204).send();
+  });
+
+  app.delete('/profiles/:id/favorites/:passageId', async (request, reply) => {
+    const parsed = favoriteParamsSchema.safeParse(request.params);
+    if (!parsed.success) {
+      return sendBadRequest(reply, parsed.error);
+    }
+    if (!(await profiles.exists(parsed.data.id))) {
+      return sendNotFound(reply, `Profile ${parsed.data.id} not found`);
+    }
+    await profiles.removeFavorite(parsed.data.id, parsed.data.passageId);
     return reply.code(204).send();
   });
 

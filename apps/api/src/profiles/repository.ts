@@ -56,6 +56,16 @@ export interface ProfileRepository {
    * profile. `now` is passed in for the expiry check (testability).
    */
   verifyClaim(token: string, now: Date): Promise<ClaimOutcome>;
+  /**
+   * Passage ids this profile has favorited (§3.3), most recently starred first.
+   * Ids only - turning them into summaries is the catalog's job (see
+   * `PassageRepository.summariesByIds`), keeping one owner per concern.
+   */
+  listFavoriteIds(profileId: string): Promise<number[]>;
+  /** Star a passage for this profile (§3.3). Idempotent: starring twice is one row. */
+  addFavorite(profileId: string, passageId: number): Promise<void>;
+  /** Unstar a passage for this profile (§3.3). A no-op when it wasn't favorited. */
+  removeFavorite(profileId: string, passageId: number): Promise<void>;
   /** This profile's daily-streak columns, as stored (Batch C §2.1). */
   getDailyStreak(profileId: string): Promise<DailyStreakState>;
   /**

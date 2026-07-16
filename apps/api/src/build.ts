@@ -79,6 +79,7 @@ export async function buildApp(config: AppConfig, deps: AppDeps = {}): Promise<F
     prefix: '/api/v1',
     profiles: profileRepo,
     results: resultRepo,
+    passages: passageRepo,
     mailer,
     webOrigin: config.CORS_ORIGIN,
   });
