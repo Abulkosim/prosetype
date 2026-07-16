@@ -237,6 +237,68 @@ describe('POST /api/v1/results', () => {
     expect(res.statusCode).toBe(400);
   });
 
+  // Timed mode (§2.3): words-shaped, but WPM measured over a fixed window that
+  // the server reproduces from the submitted durationMs.
+  const TIMED_WINDOW_MS = 30_000;
+  function timedBody(overrides: Record<string, unknown> = {}) {
+    // 8s of typing inside a 30s window: the run ends on the clock, not the text.
+    const charEvents = typeRun(WORD_TEXT, 8000);
+    const clientStats = computeStats(WORD_TEXT, charEvents, { durationOverrideMs: TIMED_WINDOW_MS });
+    return {
+      mode: 'timed',
+      profileId: PROFILE_ID,
+      text: WORD_TEXT,
+      durationMs: TIMED_WINDOW_MS,
+      clientStats,
+      charEvents,
+      ...overrides,
+    };
+  }
+
+  it('stores a timed run with duration fixed to the submitted window', async () => {
+    const { app, resultRepo } = await setup();
+    const res = await app.inject({ method: 'POST', url: '/api/v1/results', payload: timedBody() });
+    expect(res.statusCode).toBe(201);
+    const parsed = res.json<PostResultsResponse>();
+    expect(parsed.clientMatch).toBe(true);
+    expect(parsed.serverStats.durationMs).toBe(TIMED_WINDOW_MS);
+    const stored = resultRepo.inserted[0];
+    expect(stored?.mode).toBe('timed');
+    expect(stored?.passageId).toBeNull();
+    expect(stored?.wordText).toBe(WORD_TEXT);
+    expect(stored?.durationMs).toBe(TIMED_WINDOW_MS);
+  });
+
+  it('rejects a timed run whose log extends past its window (400, not stored)', async () => {
+    const { app, resultRepo } = await setup();
+    // 20s of keystrokes claimed under a 15s window - would inflate wpm.
+    const charEvents = typeRun(WORD_TEXT, 20_000);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/results',
+      payload: {
+        mode: 'timed',
+        profileId: PROFILE_ID,
+        text: WORD_TEXT,
+        durationMs: 15_000,
+        clientStats: computeStats(WORD_TEXT, charEvents, { durationOverrideMs: 15_000 }),
+        charEvents,
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(resultRepo.inserted).toHaveLength(0);
+  });
+
+  it('rejects a timed run with an unsupported window (schema 400)', async () => {
+    const { app } = await setup();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/results',
+      payload: timedBody({ durationMs: 45_000 }),
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
   it('flags the first-ever run as a new best, both global and per-passage', async () => {
     const { app } = await setup();
     const res = await app.inject({ method: 'POST', url: '/api/v1/results', payload: body() });

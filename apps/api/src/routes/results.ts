@@ -118,11 +118,13 @@ export async function resultRoutes(app: FastifyInstance, opts: ResultRoutesOptio
       }
 
       // Resolve the run's text and the shape to persist from its mode: a prose
-      // run recomputes against the stored passage; a word run against the
-      // client-submitted text (there is no stored passage to key on).
+      // run recomputes against the stored passage; a word/timed run against the
+      // client-submitted text (there is no stored passage to key on). A timed
+      // run also fixes the stat window to its submitted (validated) durationMs.
       let text: string;
       let passageId: number | null;
       let wordText: string | null;
+      let durationOverrideMs: number | undefined;
       if (body.mode === 'prose') {
         const passage = await passages.findById(body.passageId);
         if (passage === null) {
@@ -135,6 +137,21 @@ export async function resultRoutes(app: FastifyInstance, opts: ResultRoutesOptio
         text = body.text;
         passageId = null;
         wordText = body.text;
+        if (body.mode === 'timed') {
+          durationOverrideMs = body.durationMs;
+          // The log can't extend past the window: a client claiming a short
+          // window while having typed longer would inflate its WPM. (The schema
+          // already constrains durationMs to a supported window.)
+          const events = body.charEvents.events;
+          const lastEvent = events[events.length - 1];
+          const lastT = lastEvent?.[0] ?? 0;
+          if (lastT > body.durationMs) {
+            return sendBadRequestMessage(
+              reply,
+              `timed run log extends to ${String(lastT)}ms, past its ${String(body.durationMs)}ms window`,
+            );
+          }
+        }
       }
 
       // Event count plausible for the text length (plan §8 sanity check).
@@ -151,7 +168,7 @@ export async function resultRoutes(app: FastifyInstance, opts: ResultRoutesOptio
       // means a non-canonical word-mode text; MalformedLogError, a bad log.
       let serverStats: RunStats;
       try {
-        serverStats = computeStats(text, body.charEvents);
+        serverStats = computeStats(text, body.charEvents, { durationOverrideMs });
       } catch (err) {
         if (err instanceof InvalidPassageError) {
           return sendBadRequestMessage(reply, `submitted text is not canonical: ${err.message}`);

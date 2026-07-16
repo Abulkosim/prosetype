@@ -36,6 +36,13 @@
       "when": 1784211262054,
       "tag": "0004_favorites",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1784215343122,
+      "tag": "0005_timed_mode",
+      "breakpoints": true
     }
   ]
 }
