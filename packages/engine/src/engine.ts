@@ -1,7 +1,7 @@
 import type { CharEvent, CharEvents } from '@typeprose/schema';
 import { InvalidInputError } from './errors.ts';
 import { parsePassage, type ParsedPassage } from './passage.ts';
-import { statsFromState, type RunStats } from './replay.ts';
+import { statsFromState, type RunStats, type StatsOptions } from './replay.ts';
 import { wordSnapshotOf, type WordSnapshot } from './snapshot.ts';
 import {
   ADD_CORRECT,
@@ -159,6 +159,22 @@ export class TypingEngine {
     // else: previous word fully correct (or none) → no-op, nothing logged
   }
 
+  /**
+   * End the run now, from an external trigger rather than reaching the end of
+   * the text (timed mode, §2.3): the countdown fires and freezes the run
+   * mid-word at `timestampMs`. No-op while idle (a run that never started) or
+   * already complete. Appends no event - the log stays the real keystrokes; a
+   * timed run's window is carried in the submission, not the log, so the server
+   * reproduces the same duration by passing `durationOverrideMs` to
+   * {@link computeStats}.
+   */
+  finish(timestampMs: number): void {
+    this.#checkTimestamp(timestampMs);
+    if (this.status !== 'running') return;
+    this.#state.completedAtT = this.#normalize(timestampMs);
+    this.#completedAtMs = timestampMs;
+  }
+
   /** The §7.5 wire-format log (a defensive copy; safe to serialize/submit). */
   getLog(): CharEvents {
     const events: CharEvent[] = this.#events.map((e) => [e[0], e[1], e[2]]);
@@ -167,11 +183,12 @@ export class TypingEngine {
 
   /**
    * Live §7.3 stats. Identical by construction to
-   * `computeStats(passageText, getLog())`: both derive from the same reducer.
-   * While idle: 0 wpm/raw, accuracy 100, consistency 100, durationMs 0.
+   * `computeStats(passageText, getLog(), opts)`: both derive from the same
+   * reducer. While idle: 0 wpm/raw, accuracy 100, consistency 100, durationMs 0.
+   * Pass `opts.durationOverrideMs` for a timed run's fixed window (§2.3).
    */
-  getStats(): RunStats {
-    return statsFromState(this.#passage, this.#state);
+  getStats(opts?: StatsOptions): RunStats {
+    return statsFromState(this.#passage, this.#state, opts);
   }
 
   /**

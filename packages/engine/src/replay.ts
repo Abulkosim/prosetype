@@ -101,11 +101,34 @@ function runDurationMs(state: RunState): number {
 }
 
 /**
+ * Options for the stat functions. `durationOverrideMs` fixes the run's duration
+ * to an externally supplied window (timed mode, §2.3): WPM is then measured over
+ * that fixed window rather than the time of the last keystroke, and the
+ * per-second buckets span it. The server reproduces the identical figure by
+ * passing the same window from the submission, so the wire recompute still
+ * matches. Ignored (falls back to the natural completion/last-keystroke
+ * duration) when absent or non-positive.
+ */
+export interface StatsOptions {
+  durationOverrideMs?: number | undefined;
+}
+
+function effectiveDurationMs(state: RunState, opts?: StatsOptions): number {
+  const override = opts?.durationOverrideMs;
+  if (override !== undefined && override > 0) return override;
+  return runDurationMs(state);
+}
+
+/**
  * Derive §7.3 stats from a replayed (or live) run state. Values are rounded
  * to 2 decimals; an untouched run reports 0 wpm and the default 100 accuracy.
  */
-export function statsFromState(passage: ParsedPassage, state: RunState): RunStats {
-  const durationMs = runDurationMs(state);
+export function statsFromState(
+  passage: ParsedPassage,
+  state: RunState,
+  opts?: StatsOptions,
+): RunStats {
+  const durationMs = effectiveDurationMs(state, opts);
   const minutes = durationMs / 60_000;
 
   // charsInCorrectWords + correctSpaces: every char of words whose final
@@ -134,22 +157,33 @@ export function statsFromState(passage: ParsedPassage, state: RunState): RunStat
 /**
  * Pure replay: reconstruct the run from the log alone and compute §7.3 stats.
  * The client and the server call this same function; the live engine's
- * getStats() derives from the identical reducer state.
+ * getStats() derives from the identical reducer state. `opts.durationOverrideMs`
+ * fixes the window for timed mode (see {@link StatsOptions}).
  *
  * @throws InvalidPassageError | MalformedLogError
  */
-export function computeStats(passageText: string, log: CharEvents): RunStats {
+export function computeStats(
+  passageText: string,
+  log: CharEvents,
+  opts?: StatsOptions,
+): RunStats {
   const passage = parsePassage(passageText);
   const state = replayEvents(passage, log);
-  return statsFromState(passage, state);
+  return statsFromState(passage, state, opts);
 }
 
 /**
  * The per-1-second raw wpm series for the wpm-over-time sparkline (§7.5).
  * Same buckets as the consistency computation. Empty log → empty array.
+ * `opts.durationOverrideMs` spans the fixed window for timed mode, so the
+ * sparkline covers the whole run rather than stopping at the last keystroke.
  */
-export function computePerSecondRawWpm(passageText: string, log: CharEvents): number[] {
+export function computePerSecondRawWpm(
+  passageText: string,
+  log: CharEvents,
+  opts?: StatsOptions,
+): number[] {
   const passage = parsePassage(passageText);
   const state = replayEvents(passage, log);
-  return perSecondRawFrom(state.rawEventTimes, runDurationMs(state));
+  return perSecondRawFrom(state.rawEventTimes, effectiveDurationMs(state, opts));
 }

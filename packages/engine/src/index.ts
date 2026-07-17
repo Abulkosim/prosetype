@@ -29,7 +29,13 @@ export {
 
 export { ReplayEngine, createReplayEngine } from './replayEngine.ts';
 
-export { computePerSecondRawWpm, computeStats, kogasa, type RunStats } from './replay.ts';
+export {
+  computePerSecondRawWpm,
+  computeStats,
+  kogasa,
+  type RunStats,
+  type StatsOptions,
+} from './replay.ts';
 
 export { computeHeatmap, type CharHeat, type HeatmapData, type SlowWord } from './heatmap.ts';
 
