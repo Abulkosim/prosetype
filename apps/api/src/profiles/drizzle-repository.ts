@@ -1,6 +1,6 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.ts';
-import { claimTokens, profiles, results } from '../db/schema.ts';
+import { claimTokens, favorites, profiles, results } from '../db/schema.ts';
 import { displayNameFromEmail } from './claim.ts';
 import type {
   ClaimOutcome,
@@ -93,6 +93,16 @@ export function createDrizzleProfileRepository(db: Db): ProfileRepository {
             .update(results)
             .set({ profileId: existing.id })
             .where(eq(results.profileId, requesterId));
+          // Move the requester's favorites to the canonical profile (§3.3),
+          // skipping any the canonical profile already starred (composite PK),
+          // then drop the requester's rows so its profile row can be deleted.
+          await tx.execute(
+            sql`insert into ${favorites} (profile_id, passage_id, created_at)
+                select ${existing.id}, passage_id, created_at
+                from ${favorites} where profile_id = ${requesterId}
+                on conflict do nothing`,
+          );
+          await tx.delete(favorites).where(eq(favorites.profileId, requesterId));
           await tx.delete(claimTokens).where(eq(claimTokens.profileId, requesterId));
           await tx.delete(profiles).where(eq(profiles.id, requesterId));
           await tx
@@ -151,11 +161,32 @@ export function createDrizzleProfileRepository(db: Db): ProfileRepository {
           .where(eq(profiles.id, id))
           .limit(1);
         if (rows.length === 0) return false;
+        await tx.delete(favorites).where(eq(favorites.profileId, id));
         await tx.delete(claimTokens).where(eq(claimTokens.profileId, id));
         await tx.delete(results).where(eq(results.profileId, id));
         await tx.delete(profiles).where(eq(profiles.id, id));
         return true;
       });
+    },
+
+    async listFavoriteIds(profileId: string): Promise<number[]> {
+      const rows = await db
+        .select({ passageId: favorites.passageId })
+        .from(favorites)
+        .where(eq(favorites.profileId, profileId))
+        .orderBy(desc(favorites.createdAt));
+      return rows.map((r) => r.passageId);
+    },
+
+    async addFavorite(profileId: string, passageId: number): Promise<void> {
+      // Idempotent: the composite PK makes a repeat star a no-op.
+      await db.insert(favorites).values({ profileId, passageId }).onConflictDoNothing();
+    },
+
+    async removeFavorite(profileId: string, passageId: number): Promise<void> {
+      await db
+        .delete(favorites)
+        .where(and(eq(favorites.profileId, profileId), eq(favorites.passageId, passageId)));
     },
 
     async getDailyStreak(profileId: string): Promise<DailyStreakState> {

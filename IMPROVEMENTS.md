@@ -206,26 +206,37 @@ wire log carries no typed characters, so extras replay as blanks.
 
 
 
-### 3.3 Favorites
+### ~~3.3 Favorites~~ ✅ shipped 2026-07-16
 
-- Star a passage from the result view; "favorites" filter in the library.
-Per-profile server-side (survives claim/merge).
-
-
-
-### 3.4 Accessibility pass
-
-- `aria-live` region announcing completion + final WPM.
-- Screen-reader review of the stage (the passage is currently
-visual-only).
-- Keyboard-only audit of library/leaderboard/claim pages.
+- ~~Star a passage from the result view; "favorites" filter in the library.
+Per-profile server-side (survives claim/merge).~~ Shipped: a `favorites`
+join table (composite PK, idempotent), `GET`/`PUT`/`DELETE
+/profiles/:id/favorites`; the profile owns the join (cascades on delete,
+merges on claim), the catalog turns ids into summaries. Web: an optimistic
+`useFavoritesStore`, a prose-only star on the result view, and a "your
+favorites" section on the library page.
 
 
 
-### 3.5 Share cards for word runs
+### ~~3.4 Accessibility pass~~ ✅ shipped 2026-07-16
 
-Word runs currently get no share card. A "words · N" variant of the
-canvas card is cheap and keeps the share loop for grinders.
+- ~~`aria-live` region announcing completion + final WPM.~~ Shipped: a
+visually-hidden `role="status"` region on the result view.
+- ~~Screen-reader review of the stage (the passage is currently
+visual-only).~~ Shipped: the char-span board is `aria-hidden`; the input's
+`aria-describedby` exposes the clean target text.
+- ~~Keyboard-only audit of library/leaderboard/claim pages.~~ Shipped: a
+skip-to-content link + `<main>` landmark; the pages were already
+buttons/links/labeled forms under the global tungsten focus ring.
+
+
+
+### ~~3.5 Share cards for word runs~~ ✅ shipped 2026-07-16
+
+- ~~Word runs currently get no share card. A "words · N" variant of the
+canvas card is cheap and keeps the share loop for grinders.~~ Shipped: the
+card generalized to a `ShareCardMeta` - prose keeps its italic-serif
+attribution, word runs caption with their mode label in mono caps.
 
 
 
@@ -296,9 +307,8 @@ hitting the app.
 
 Open product work, in priority order:
 
-1. **Batch E (pre-launch polish):** 3.5 word-run share cards (smallest
-  item, closes the share-loop gap), 3.4 accessibility pass (easier
-  before launch than after), 3.3 favorites.
+1. ~~**Batch E (pre-launch polish):** 3.5 word-run share cards, 3.4
+  accessibility pass, 3.3 favorites.~~ ✅ shipped 2026-07-16.
 2. **Timed mode (30s/60s)** — the one deliberately deferred piece of
   2.3. Needs a spec first: it changes the engine's completion
   semantics. The biggest remaining "expected typing-app feature".

@@ -44,4 +44,10 @@ export interface PassageRepository {
    * listing (GET /passages, batch B item 1.5). Ordered by author then work.
    */
   list(filter: PassageListFilter): Promise<PassageSummaryItem[]>;
+  /**
+   * Passage summaries for a specific set of ids, for the favorites listing
+   * (§3.3). Returned in the order the ids are given (the caller passes them in
+   * favorite order); ids with no matching passage are dropped.
+   */
+  summariesByIds(ids: number[]): Promise<PassageSummaryItem[]>;
 }

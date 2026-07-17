@@ -10,6 +10,7 @@ import {
   jsonb,
   numeric,
   pgTable,
+  primaryKey,
   serial,
   text,
   timestamp,
@@ -81,6 +82,29 @@ export const profiles = pgTable('profiles', {
   dailyBestStreak: integer('daily_best_streak').notNull().default(0),
   lastDailyDate: date('last_daily_date', { mode: 'string' }),
 });
+
+/**
+ * Per-profile favorited passages (§3.3). A join table keyed on
+ * (profile_id, passage_id) so a favorite is idempotent (star twice = one row).
+ * Owned by the profile: cascades on profile delete and merges into the
+ * canonical profile on email claim, so favorites survive a claim/merge.
+ */
+export const favorites = pgTable(
+  'favorites',
+  {
+    profileId: uuid('profile_id')
+      .notNull()
+      .references(() => profiles.id),
+    passageId: integer('passage_id')
+      .notNull()
+      .references(() => passages.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.profileId, table.passageId] }),
+    index('favorites_profile_id_created_at_idx').on(table.profileId, table.createdAt.desc()),
+  ],
+);
 
 /** Pending email-claim magic links (Phase 3, §10.3). Short-lived, single-use. */
 export const claimTokens = pgTable('claim_tokens', {

@@ -128,6 +128,18 @@ function createStubRepo(fixtures: Passage[]): PassageRepository & {
           author: { slug: p.author.slug, name: p.author.name },
         }));
     },
+    async summariesByIds(ids: number[]) {
+      return ids
+        .map((id) => fixtures.find((p) => p.id === id))
+        .filter((p): p is Passage => p !== undefined)
+        .map((p) => ({
+          id: p.id,
+          band: p.band,
+          opening: p.text.slice(0, 60),
+          work: { title: p.work.title },
+          author: { slug: p.author.slug, name: p.author.name },
+        }));
+    },
   };
 }
 

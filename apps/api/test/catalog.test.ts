@@ -32,6 +32,9 @@ function catalogRepo(): PassageRepository {
     async list() {
       return [];
     },
+    async summariesByIds() {
+      return [];
+    },
   };
 }
 

@@ -29,6 +29,13 @@
       "when": 1783967048337,
       "tag": "0003_daily_streak",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1784211262054,
+      "tag": "0004_favorites",
+      "breakpoints": true
     }
   ]
 }
