@@ -1,6 +1,6 @@
 import type { CharEvents } from '@typeprose/schema';
 import { parsePassage } from './passage.ts';
-import { replayEvents } from './replay.ts';
+import { firstAttemptAccounting } from './replay.ts';
 
 /**
  * Aggregate per-key / per-bigram error and hesitation stats across many runs
@@ -70,36 +70,15 @@ function bucketFor(map: Map<string, Bucket>, key: string): Bucket {
 
 /**
  * Replay one run and fold its first-attempt latencies + error touches into the
- * key and bigram buckets. Mirrors the per-index accounting in
- * {@link computeHeatmap}: backspaces don't advance the chain, latency is
- * attributed on the first attempt at a target slot (or a committed space), and
- * every keypress advances the previous-keypress clock.
+ * key and bigram buckets, grouping the shared per-index accounting
+ * ({@link firstAttemptAccounting}, same rules as {@link computeHeatmap}) by
+ * expected character instead of passage index.
  *
  * @throws InvalidPassageError | MalformedLogError
  */
 function foldRun(run: KeyStatsRun, keys: Map<string, Bucket>, bigrams: Map<string, Bucket>): void {
   const passage = parsePassage(run.passageText);
-  const latency = new Array<number | null>(passage.length).fill(null);
-  const errorTouches = new Array<number>(passage.length).fill(0);
-  const attempted = new Array<boolean>(passage.length).fill(false);
-  let prevKeyT: number | null = null;
-
-  replayEvents(passage, run.log, (event, result) => {
-    if (
-      result.kind === 'delete-slot' ||
-      result.kind === 'delete-extra' ||
-      result.kind === 'uncommit'
-    ) {
-      return; // backspaces are not keypresses and do not advance the chain
-    }
-    const [t, i] = event;
-    if ((result.kind === 'add-slot' || result.kind === 'commit') && attempted[i] !== true) {
-      attempted[i] = true;
-      if (prevKeyT !== null) latency[i] = t - prevKeyT;
-    }
-    if (result.correct === false) errorTouches[i] = (errorTouches[i] ?? 0) + 1;
-    prevKeyT = t;
-  });
+  const { latency, errorTouches, attempted } = firstAttemptAccounting(passage, run.log);
 
   const text = passage.text;
   for (let i = 0; i < passage.length; i += 1) {

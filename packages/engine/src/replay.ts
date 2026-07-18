@@ -58,15 +58,69 @@ export function replayEvents(
   log: CharEvents,
   onEvent?: (event: CharEvent, result: ApplyResult) => void,
 ): RunState {
-  if ((log.v as number) !== 1) {
-    throw new MalformedLogError(`unsupported charEvents version ${String(log.v)}`);
-  }
+  assertSupportedLogVersion(log);
   const state = createRunState(passage);
   for (const event of log.events) {
     const result = applyEvent(passage, state, event);
     onEvent?.(event, result);
   }
   return state;
+}
+
+/** @throws MalformedLogError on any wire version this engine cannot replay. */
+export function assertSupportedLogVersion(log: CharEvents): void {
+  if ((log.v as number) !== 1) {
+    throw new MalformedLogError(`unsupported charEvents version ${String(log.v)}`);
+  }
+}
+
+/**
+ * First-attempt latency and error-touch accounting per passage index, shared
+ * by the heatmap (per-index, §7.6) and key-stats (per-expected-char, §4)
+ * aggregations. Chain rules: backspaces are not keypresses and do not advance
+ * the previous-keypress clock; latency is attributed on the first attempt at
+ * a target index (slot chars and committed spaces); extras and over-cap
+ * presses have no target char but still advance the clock.
+ */
+export interface FirstAttemptAccounting {
+  /** First-attempt inter-key interval per index; null when never attempted or the run's first keypress. */
+  latency: (number | null)[];
+  /** Incorrect keypresses that touched each index. */
+  errorTouches: number[];
+  /** Whether a first attempt landed on each index. */
+  attempted: boolean[];
+}
+
+/** @throws InvalidPassageError | MalformedLogError */
+export function firstAttemptAccounting(
+  passage: ParsedPassage,
+  log: CharEvents,
+): FirstAttemptAccounting {
+  const latency = new Array<number | null>(passage.length).fill(null);
+  const errorTouches = new Array<number>(passage.length).fill(0);
+  const attempted = new Array<boolean>(passage.length).fill(false);
+  let prevKeyT: number | null = null;
+
+  replayEvents(passage, log, (event, result) => {
+    if (
+      result.kind === 'delete-slot' ||
+      result.kind === 'delete-extra' ||
+      result.kind === 'uncommit'
+    ) {
+      return; // backspaces are not keypresses and do not advance the chain
+    }
+    const [t, i] = event;
+    // Latency is attributed on the first attempt at a target index (slot chars
+    // and the space itself); extras/over-cap presses have no target char.
+    if ((result.kind === 'add-slot' || result.kind === 'commit') && attempted[i] !== true) {
+      attempted[i] = true;
+      if (prevKeyT !== null) latency[i] = t - prevKeyT;
+    }
+    if (result.correct === false) errorTouches[i] = (errorTouches[i] ?? 0) + 1;
+    prevKeyT = t; // every keypress (extras and over-cap included) advances the chain
+  });
+
+  return { latency, errorTouches, attempted };
 }
 
 /**

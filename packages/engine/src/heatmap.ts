@@ -1,6 +1,6 @@
 import type { CharEvents } from '@typeprose/schema';
 import { parsePassage } from './passage.ts';
-import { replayEvents } from './replay.ts';
+import { firstAttemptAccounting } from './replay.ts';
 
 /** Per-character heatmap datum (plan §7.6). */
 export interface CharHeat {
@@ -57,29 +57,7 @@ function percentile95(sortedAsc: readonly number[]): number {
  */
 export function computeHeatmap(passageText: string, log: CharEvents): HeatmapData {
   const passage = parsePassage(passageText);
-  const latency = new Array<number | null>(passage.length).fill(null);
-  const errorTouches = new Array<number>(passage.length).fill(0);
-  const attempted = new Array<boolean>(passage.length).fill(false);
-  let prevKeyT: number | null = null;
-
-  replayEvents(passage, log, (event, result) => {
-    if (
-      result.kind === 'delete-slot' ||
-      result.kind === 'delete-extra' ||
-      result.kind === 'uncommit'
-    ) {
-      return; // backspaces are not keypresses and do not advance the chain
-    }
-    const [t, i] = event;
-    // Latency is attributed on the first attempt at a target index (slot chars
-    // and the space itself); extras/over-cap presses have no target char.
-    if ((result.kind === 'add-slot' || result.kind === 'commit') && attempted[i] !== true) {
-      attempted[i] = true;
-      if (prevKeyT !== null) latency[i] = t - prevKeyT;
-    }
-    if (result.correct === false) errorTouches[i] = (errorTouches[i] ?? 0) + 1;
-    prevKeyT = t; // every keypress (extras and over-cap included) advances the chain
-  });
+  const { latency, errorTouches } = firstAttemptAccounting(passage, log);
 
   const samples = latency.filter((l): l is number => l !== null).sort((a, b) => a - b);
   const p95 = percentile95(samples);
