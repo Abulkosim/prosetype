@@ -13,5 +13,4 @@ export function createDbClient(databaseUrl: string) {
   return { sql, db };
 }
 
-export type DbClient = ReturnType<typeof createDbClient>;
-export type Db = DbClient['db'];
+export type Db = ReturnType<typeof createDbClient>['db'];
