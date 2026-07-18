@@ -16,8 +16,3 @@ export const useCustomTextStore = create<CustomTextDialogState>()((set) => ({
   open: () => set({ isOpen: true }),
   close: () => set({ isOpen: false }),
 }));
-
-/** Reset store state. Test helper only. */
-export function resetCustomTextStore(): void {
-  useCustomTextStore.setState({ isOpen: false });
-}

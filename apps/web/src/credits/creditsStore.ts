@@ -17,8 +17,3 @@ export const useCreditsStore = create<CreditsState>()((set) => ({
   open: () => set({ isOpen: true }),
   close: () => set({ isOpen: false }),
 }));
-
-/** Reset store state. Test helper only. */
-export function resetCreditsStore(): void {
-  useCreditsStore.setState({ isOpen: false });
-}

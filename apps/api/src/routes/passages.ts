@@ -8,10 +8,15 @@ import { sendBadRequest, sendNotFound } from './http.ts';
 /** Max recent passage ids accepted in `exclude` (plan §8: "cap 20"). */
 export const MAX_EXCLUDE_IDS = 20;
 
-const nextQuerySchema = z.object({
+/** The band/theme/author filter fields shared by /passages/next and /passages. */
+const filterQueryFields = {
   band: bandSchema.optional(),
   theme: z.string().min(1).optional(),
   author: z.string().min(1).optional(),
+};
+
+const nextQuerySchema = z.object({
+  ...filterQueryFields,
   exclude: z
     .string()
     .regex(/^\d+(,\d+)*$/, 'exclude must be a comma-separated list of passage ids')
@@ -28,11 +33,7 @@ const idParamsSchema = z.object({
   id: z.coerce.number().int().positive(),
 });
 
-const listQuerySchema = z.object({
-  band: bandSchema.optional(),
-  theme: z.string().min(1).optional(),
-  author: z.string().min(1).optional(),
-});
+const listQuerySchema = z.object(filterQueryFields);
 
 function describeFilter(filter: PassageFilter): string {
   const parts = [

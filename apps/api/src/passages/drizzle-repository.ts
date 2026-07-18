@@ -74,6 +74,21 @@ function toSummary(r: SummaryRow): PassageSummaryItem {
   });
 }
 
+/** WHERE conditions shared by every band/theme/author-filtered passage query. */
+function filterConditions(filter: PassageListFilter): SQL[] {
+  const conditions: SQL[] = [];
+  if (filter.band !== undefined) {
+    conditions.push(eq(passages.band, filter.band));
+  }
+  if (filter.theme !== undefined) {
+    conditions.push(arrayContains(passages.themes, [filter.theme]));
+  }
+  if (filter.author !== undefined) {
+    conditions.push(eq(authors.slug, filter.author));
+  }
+  return conditions;
+}
+
 /**
  * Drizzle-backed PassageRepository. Rows are parsed through the shared
  * passageSchema so any DB/DTO drift fails loudly instead of leaking out.
@@ -88,20 +103,11 @@ export function createDrizzlePassageRepository(db: Db): PassageRepository {
 
   return {
     async findRandom(filter: PassageFilter): Promise<Passage | null> {
-      const conditions: SQL[] = [];
-      if (filter.band !== undefined) {
-        conditions.push(eq(passages.band, filter.band));
-      }
-      if (filter.theme !== undefined) {
-        conditions.push(arrayContains(passages.themes, [filter.theme]));
-      }
-      if (filter.author !== undefined) {
-        conditions.push(eq(authors.slug, filter.author));
-      }
+      const conditions = filterConditions(filter);
       if (filter.excludeIds.length > 0) {
         conditions.push(notInArray(passages.id, filter.excludeIds));
       }
-      // ORDER BY random() scans every matching row; fine at the ~30-row seed
+      // ORDER BY random() scans every matching row; fine at the ~100-row
       // corpus scale (plan §8 sizing) - revisit if the corpus grows large.
       const rows = await baseQuery()
         .where(and(...conditions))
@@ -155,16 +161,7 @@ export function createDrizzlePassageRepository(db: Db): PassageRepository {
     },
 
     async list(filter: PassageListFilter): Promise<PassageSummaryItem[]> {
-      const conditions: SQL[] = [];
-      if (filter.band !== undefined) {
-        conditions.push(eq(passages.band, filter.band));
-      }
-      if (filter.theme !== undefined) {
-        conditions.push(arrayContains(passages.themes, [filter.theme]));
-      }
-      if (filter.author !== undefined) {
-        conditions.push(eq(authors.slug, filter.author));
-      }
+      const conditions = filterConditions(filter);
       const rows = await db
         .select(summarySelection)
         .from(passages)

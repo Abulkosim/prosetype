@@ -1,7 +1,7 @@
 import type { CharEvent, CharEvents } from '@typeprose/schema';
 import type { EngineSnapshot, EngineStatus } from './engine.ts';
-import { MalformedLogError } from './errors.ts';
 import { parsePassage, type ParsedPassage } from './passage.ts';
+import { assertSupportedLogVersion } from './replay.ts';
 import { wordSnapshotOf, type WordSnapshot } from './snapshot.ts';
 import { applyEvent, createRunState, type RunState, type WordRunState } from './state.ts';
 
@@ -29,9 +29,7 @@ export class ReplayEngine {
   constructor(passageText: string, log: CharEvents) {
     this.#passage = parsePassage(passageText);
     this.passageText = this.#passage.text;
-    if ((log.v as number) !== 1) {
-      throw new MalformedLogError(`unsupported charEvents version ${String(log.v)}`);
-    }
+    assertSupportedLogVersion(log);
     this.#events = log.events.map((e): CharEvent => [e[0], e[1], e[2]]);
     this.#state = createRunState(this.#passage);
     this.#wordSnapshots = new Array<WordSnapshot | null>(this.#passage.words.length).fill(null);
