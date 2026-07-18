@@ -12,7 +12,7 @@
     "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
-    "@fastify/cors": "^11.2.0",
+    "@fastify/cors": "^11.3.0",
     "@fastify/rate-limit": "^11.1.0",
     "@typeprose/engine": "workspace:*",
     "@typeprose/schema": "workspace:*",
@@ -22,7 +22,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@types/node": "^24.0.0",
+    "@types/node": "^24.13.3",
     "drizzle-kit": "^0.31.10",
     "typescript": "~5.9.3",
     "vitest": "^4.1.10"
