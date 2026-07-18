@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
 
+import { prefersReducedMotion } from '../lib/device';
 import { CREDIT_CARDS, CREDITS_HOLD_MS, CREDITS_MS_PER_CHAR, type CreditCard } from './credits';
 import { useCreditsStore } from './creditsStore';
 
@@ -52,7 +53,7 @@ function CreditsRoll(): ReactElement {
   // Typewriter reveal, one card at a time. Reduced motion lands the whole
   // title in a frame (opacity-only fades remain, per the motion language).
   useEffect(() => {
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const reduceMotion = prefersReducedMotion();
     setRevealed(reduceMotion ? card.title.length : 0);
     if (reduceMotion) return;
     const interval = setInterval(() => {

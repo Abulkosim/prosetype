@@ -12,3 +12,12 @@ export function isKeyboardless(): boolean {
     return false;
   }
 }
+
+/**
+ * Whether the user prefers reduced motion. The global CSS rule already zeroes
+ * transitions/animations; this is for the JS-driven effects (WAAPI fades, the
+ * credits typewriter) that need to branch themselves.
+ */
+export function prefersReducedMotion(): boolean {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}

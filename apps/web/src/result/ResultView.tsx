@@ -1,6 +1,6 @@
 import { computeHeatmap, computePerSecondRawWpm, type RunStats } from '@typeprose/engine';
 import type { CharEvents } from '@typeprose/schema';
-import { useEffect, useState, useMemo, type ReactElement } from 'react';
+import { useEffect, useRef, useState, useMemo, type ReactElement } from 'react';
 import { Link } from 'react-router';
 
 import { Epigraph } from '../components/Epigraph';
@@ -135,6 +135,8 @@ export function ResultView({ run, test, onNext }: ResultViewProps): ReactElement
   const { stats } = run;
   const text = test.kind === 'passage' ? test.passage.text : test.text;
   const [share, setShare] = useState<ShareState>('idle');
+  const shareResetTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(shareResetTimer.current), []);
   const [replaying, setReplaying] = useState(false);
   const bestInfo = useTypingStore((s) => s.bestInfo);
   const heatmap = useMemo(() => computeHeatmap(text, run.log), [text, run.log]);
@@ -185,7 +187,7 @@ export function ResultView({ run, test, onNext }: ResultViewProps): ReactElement
       .then((outcome) => setShare(outcome))
       .catch(() => setShare('error'))
       .finally(() => {
-        setTimeout(() => setShare('idle'), 2400);
+        shareResetTimer.current = window.setTimeout(() => setShare('idle'), 2400);
       });
   };
 

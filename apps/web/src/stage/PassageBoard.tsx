@@ -1,6 +1,7 @@
 import type { EngineSnapshot } from '@typeprose/engine';
 import { Fragment, useCallback, useLayoutEffect, useRef, type ReactElement } from 'react';
 
+import { prefersReducedMotion } from '../lib/device';
 import { Word, type RegisterChar } from './Word';
 
 /** Char spans are keyed (wordIndex, charIndex); words never near 4096 chars. */
@@ -69,7 +70,7 @@ export function PassageBoard({ snapshot }: { snapshot: EngineSnapshot }): ReactE
     if (targetScroll !== scrollYRef.current) {
       scrollYRef.current = targetScroll;
       wordsEl.style.transform = `translateY(-${String(targetScroll)}px)`;
-      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      if (prefersReducedMotion()) {
         // The global reduced-motion rule zeroes the transform transition, so
         // the scroll is an instant cut; add an opacity-only fade (motion-safe).
         wordsEl.animate([{ opacity: 0.25 }, { opacity: 1 }], { duration: 160, easing: 'ease-out' });
